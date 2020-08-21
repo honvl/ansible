@@ -6,3 +6,4 @@
     panos_check:
       username: '{{ username }}'
       password: '{{ password }}'
+      ip_address: '{{ ip_address }}'
