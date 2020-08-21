@@ -4,3 +4,4 @@
   tasks:
   - name: Palo Alto check
     panos_check:
+      provider: '{{ provider }}'
