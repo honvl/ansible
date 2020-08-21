@@ -2,11 +2,9 @@
   collections:
     - paloaltonetworks.panos
   tasks:
-  - name: Get the system info
-    panos_op:
+  - name: Palo Alto check
+    panos_check:
       provider: '{{ provider }}'
-      cmd: 'show system info'
-    register: res
 
   - debug:
       msg: '{{ res.stdout }}'
