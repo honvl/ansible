@@ -1,6 +1,8 @@
   collections:
     - paloaltonetworks.panos
 
+- name: Palo Alto Sample
+  hosts: all
   tasks:
   - name: Get the system info
     panos_op:
