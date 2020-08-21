@@ -4,7 +4,3 @@
   tasks:
   - name: Palo Alto check
     panos_check:
-      provider: '{{ provider }}'
-
-  - debug:
-      msg: '{{ res.stdout }}'
