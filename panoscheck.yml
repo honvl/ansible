@@ -7,3 +7,4 @@
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
+      timeout: 30
