@@ -4,5 +4,7 @@
   tasks:
   - name: Palo Alto info
     panos_op:
+      username: '{{ username }}'
       password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
       cmd: 'show system info'
