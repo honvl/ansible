@@ -1,0 +1,8 @@
+- hosts: all
+  collections:
+    - paloaltonetworks.panos
+  tasks:
+  - name: Palo Alto info
+    panos_op:
+      password: '{{ password }}'
+      cmd: 'show system info'
