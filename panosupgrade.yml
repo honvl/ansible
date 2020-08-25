@@ -8,6 +8,12 @@
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
       cmd: 'show high-availability state'
+      register: result
+  - name: Get result from xml
+    xml:
+      xmlstring: '{{ result }}'
+      content: "text"
+      xpath: "/response/result/state"
 
 - hosts: fw_px_pa3220-2_mgt.ad.dpw.com
 
@@ -18,3 +24,9 @@
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
       cmd: 'show high-availability state'
+      register: result
+  - name: Get result from xml
+    xml:
+      xmlstring: '{{ result }}'
+      content: "text"
+      xpath: "/response/result/state"      
