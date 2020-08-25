@@ -9,7 +9,7 @@
       ip_address: '{{ inventory_hostname }}'
       cmd: 'show high-availability state'
     register: result
-    until: result.stdout_lines.0.find("passive") != -1
+    until: result.stdout_xml.find("<preempt-hold>1</preempt-hold><state>passive</state>") != -1
 
 #- hosts: fw_px_pa3220-2_mgt.ad.dpw.com
 #
