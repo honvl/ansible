@@ -1,21 +1,18 @@
-collections:
-  - paloaltonetworks.panos
+- hosts: fw_px_pa3220-1_mgt.ad.dpw.com
 
-  - hosts: fw_px_pa3220-1_mgt.ad.dpw.com
-
-    tasks:
+  tasks:
   - name: Palo Alto info
-    panos_op:
+    panos_op.paloaltonetworks.panos:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
       cmd: 'show system info'
 
-  - hosts: fw_px_pa3220-2_mgt.ad.dpw.com
+- hosts: fw_px_pa3220-2_mgt.ad.dpw.com
 
-    tasks:
+  tasks:
   - name: Palo Alto info
-    panos_op:
+    panos_op.paloaltonetworks.panos:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
