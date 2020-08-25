@@ -1,8 +1,9 @@
+#passive
 - hosts: fw_px_pa3220-1_mgt.ad.dpw.com
   collections:
     - paloaltonetworks.panos
   tasks:
-  - name: Palo Alto HA status
+  - name: Palo Alto HA status confirm passive
     panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
@@ -11,18 +12,146 @@
     register: result
     until: result.stdout_xml.find("<preempt-hold>1</preempt-hold><state>passive</state>") != -1
 
-#- hosts: fw_px_pa3220-2_mgt.ad.dpw.com
-#
-#  tasks:
-#  - name: Palo Alto HA status
-#    panos_op:
-#      username: '{{ username }}'
-#      password: '{{ password }}'
-#      ip_address: '{{ inventory_hostname }}'
-#      cmd: 'show high-availability state | match State:'
-#    register: result
-#  - name: Get result from xml
-#    xml:
-#      xmlstring: '{{ result.stdout_xml }}'
-#      content: "text"
-#      xpath: "/response/result"      
+  - name: Download Pan-OS 9.0.0 base image only
+    panos_software:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      version: '9.0.0'
+      install: false
+      restart: false
+
+  - name: Download Pan-OS 9.0.9-h1 and restart
+    panos_software:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      version: '9.0.9-h1'
+      install: true
+      restart: true        
+
+  - name: Wait for FW reboot
+    panos_check:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+    register: result
+    until: not result|failed
+    retries: 1000
+    delay: 5
+
+  - name: Palo Alto HA status confirm passive
+    panos_op:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      cmd: 'show high-availability state'
+    register: result
+    until: result.stdout_xml.find("<preempt-hold>1</preempt-hold><state>passive</state>") != -1
+    retries: 100
+    delay: 5
+
+#active
+
+- hosts: fw_px_pa3220-2_mgt.ad.dpw.com
+  tasks:
+  - name: Download Pan-OS 9.0.0 base image only
+    panos_software:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      version: '9.0.0'
+      install: false
+      restart: false    
+
+  - name: Download Pan-OS 9.0.9-h1 and restart
+    panos_software:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      version: '9.0.9-h1'
+      install: true
+      restart: true  
+
+  - name: Wait for FW reboot
+    panos_check:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+    register: result
+    until: not result|failed
+    retries: 1000
+    delay: 5
+
+  - name: Download Pan-OS 9.1.0 base image only
+    panos_software:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      version: '9.1.0'
+      install: false
+      restart: false 
+
+  - name: Download Pan-OS 9.1.3-h1 and restart
+    panos_software:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      version: '9.1.3-h1'
+      install: true
+      restart: true 
+
+  - name: Wait for FW reboot
+    panos_check:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+    register: result
+    until: not result|failed
+    retries: 1000
+    delay: 5
+
+  - name: Palo Alto HA status confirm passive
+    panos_op:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      cmd: 'show high-availability state'
+    register: result
+    until: result.stdout_xml.find("<preempt-hold>1</preempt-hold><state>passive</state>") != -1
+    retries: 100
+    delay: 5
+
+#new active
+- hosts: fw_px_pa3220-1_mgt.ad.dpw.com
+  collections:
+    - paloaltonetworks.panos
+  tasks:
+
+  - name: Download Pan-OS 9.1.0 base image only
+    panos_software:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      version: '9.1.0'
+      install: false
+      restart: false 
+
+  - name: Download Pan-OS 9.1.3-h1 and restart
+    panos_software:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      version: '9.1.3-h1'
+      install: true
+      restart: true 
+
+  - name: Wait for FW reboot
+    panos_check:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+    register: result
+    until: not result|failed
+    retries: 1000
+    delay: 5
