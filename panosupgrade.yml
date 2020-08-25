@@ -2,7 +2,7 @@
 
   tasks:
   - name: Palo Alto info
-    panos_op.paloaltonetworks.panos:
+    paloaltonetworks.panos.panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -12,7 +12,7 @@
 
   tasks:
   - name: Palo Alto info
-    panos_op.paloaltonetworks.panos:
+    paloaltonetworks.panos.panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
