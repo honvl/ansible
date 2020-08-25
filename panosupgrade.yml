@@ -11,7 +11,7 @@
     register: result
   - name: Get result from xml
     xml:
-      xmlstring: '{{ result }}'
+      xmlstring: '{{ result.stdout_xml }}'
       content: "text"
       xpath: "/response/result/state"
 
@@ -27,6 +27,6 @@
     register: result
   - name: Get result from xml
     xml:
-      xmlstring: '{{ result }}'
+      xmlstring: '{{ result.stdout_xml }}'
       content: "text"
       xpath: "/response/result/state"      
