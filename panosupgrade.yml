@@ -1,8 +1,9 @@
 - hosts: fw_px_pa3220-1_mgt.ad.dpw.com
-
+  collections:
+    - paloaltonetworks.panos
   tasks:
   - name: Palo Alto info
-    paloaltonetworks.panos.panos_op:
+    panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -12,7 +13,7 @@
 
   tasks:
   - name: Palo Alto info
-    paloaltonetworks.panos.panos_op:
+    panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
