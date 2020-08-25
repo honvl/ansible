@@ -2,19 +2,19 @@
   collections:
     - paloaltonetworks.panos
   tasks:
-  - name: Palo Alto info
+  - name: Palo Alto HA status
     panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
-      cmd: 'show system info'
+      cmd: 'show high-availability state'
 
 - hosts: fw_px_pa3220-2_mgt.ad.dpw.com
 
   tasks:
-  - name: Palo Alto info
+  - name: Palo Alto HA status
     panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
-      cmd: 'show system info'
+      cmd: 'show high-availability state'
