@@ -9,24 +9,24 @@
       ip_address: '{{ inventory_hostname }}'
       cmd: 'show high-availability state | match State:'
     register: result
-  - name: Get result from xml
-    xml:
-      xmlstring: '{{ result.stdout_xml }}'
-      content: "text"
-      xpath: "/response/result"
+#  - name: Get result from xml
+#    xml:
+#      xmlstring: '{{ result.stdout_xml }}'
+#      content: "text"
+#      xpath: "/response/result"
 
-- hosts: fw_px_pa3220-2_mgt.ad.dpw.com
-
-  tasks:
-  - name: Palo Alto HA status
-    panos_op:
-      username: '{{ username }}'
-      password: '{{ password }}'
-      ip_address: '{{ inventory_hostname }}'
-      cmd: 'show high-availability state | match State:'
-    register: result
-  - name: Get result from xml
-    xml:
-      xmlstring: '{{ result.stdout_xml }}'
-      content: "text"
-      xpath: "/response/result"      
+#- hosts: fw_px_pa3220-2_mgt.ad.dpw.com
+#
+#  tasks:
+#  - name: Palo Alto HA status
+#    panos_op:
+#      username: '{{ username }}'
+#      password: '{{ password }}'
+#      ip_address: '{{ inventory_hostname }}'
+#      cmd: 'show high-availability state | match State:'
+#    register: result
+#  - name: Get result from xml
+#    xml:
+#      xmlstring: '{{ result.stdout_xml }}'
+#      content: "text"
+#      xpath: "/response/result"      
