@@ -8,7 +8,7 @@
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
       cmd: 'show high-availability state'
-      register: result
+    register: result
   - name: Get result from xml
     xml:
       xmlstring: '{{ result }}'
@@ -24,7 +24,7 @@
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
       cmd: 'show high-availability state'
-      register: result
+    register: result
   - name: Get result from xml
     xml:
       xmlstring: '{{ result }}'
