@@ -1,5 +1,6 @@
 #passive
 - hosts: fw_px_pa3220-1_mgt.ad.dpw.com
+  connection: local
   collections:
     - paloaltonetworks.panos
   tasks:
@@ -54,6 +55,7 @@
 #active
 
 - hosts: fw_px_pa3220-2_mgt.ad.dpw.com
+  connection: local
   tasks:
   - name: Download Pan-OS 9.0.0 base image only
     panos_software:
@@ -124,6 +126,7 @@
 
 #new active
 - hosts: fw_px_pa3220-1_mgt.ad.dpw.com
+  connection: local
   collections:
     - paloaltonetworks.panos
   tasks:

@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"name": "Github",
+			"uri": "github:/"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {}
+}

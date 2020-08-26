@@ -1,4 +1,5 @@
 - hosts: all
+  connection: local
   collections:
     - paloaltonetworks.panos
   tasks:
