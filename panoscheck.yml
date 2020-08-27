@@ -1,4 +1,4 @@
-- hosts: all
+- hosts: ha_pair
   connection: local
   collections:
     - paloaltonetworks.panos
