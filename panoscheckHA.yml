@@ -1,7 +1,6 @@
 - hosts: '{{ target | default("ha_pair") }}'
   connection: local
-  collections:
-    - paloaltonetworks.panos
+
   vars:
     primary:
       ip_address: '{{ primary_ip_address }}'
@@ -18,11 +17,11 @@
 
   tasks:
   - name: Palo Alto check primary
-    panos_check:
+    paloaltonetworks.panos.panos_op:
       provider: '{{ primary }}'
-      timeout: 15
+      cmd: 'show chassis-ready'
 
   - name: Palo Alto check secondary
-    panos_check:
-      provider: '{{ secondary }}'
-      timeout: 15
+    paloaltonetworks.panos.panos_op:
+      provider: '{{ primary }}'
+      cmd: 'show chassis-ready'
