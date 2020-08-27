@@ -1,0 +1,28 @@
+- hosts: '{{ target | default("ha_pair") }}'
+  connection: local
+  collections:
+    - paloaltonetworks.panos
+  vars:
+    primary:
+      ip_address: '{{ primary_ip_address }}'
+      username: '{{ username | default(omit) }}'
+      password: '{{ password | default(omit) }}'
+      api_key: '{{ api_key | default(omit) }}'
+
+    secondary:
+      ip_address: '{{ secondary_ip_address }}'
+      username: '{{ username | default(omit) }}'
+      password: '{{ password | default(omit) }}'
+      api_key: '{{ api_key | default(omit) }}'
+
+
+  tasks:
+  - name: Palo Alto check primary
+    panos_check:
+      provider: '{{ primary }}'
+      timeout: 15
+
+  - name: Palo Alto check secondary
+    panos_check:
+      provider: '{{ secondary }}'
+      timeout: 15
