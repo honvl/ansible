@@ -19,9 +19,9 @@
     - name: Palo Alto check primary
       paloaltonetworks.panos.panos_op:
         provider: '{{ primary }}'
-        cmd: 'show chassis-ready'
+        cmd: 'show system info'
 
     - name: Palo Alto check secondary
       paloaltonetworks.panos.panos_op:
         provider: '{{ secondary }}'
-        cmd: 'show chassis-ready'
+        cmd: 'show system info'
