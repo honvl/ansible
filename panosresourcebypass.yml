@@ -1,12 +1,11 @@
-- hosts: '{{ target | default("firewall") }}'
+- hosts: all
   connection: local
   collections:
     - paloaltonetworks.panos
   tasks:
-  - name: Palo Alto check
-    panos_check:
+  - name: Apply "set session resource-limit-behavior bypass" command 
+    panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
-      timeout: 15
-##
+      cmd: 'set session resource-limit-behavior bypass'
