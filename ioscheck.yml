@@ -1,9 +1,12 @@
 - name: Check Cisco IOS connections
   hosts: all
   tasks:
+    - name: Ping the devices
+      net_ping:
+        dest: "{{ hostvars[inventory_hostname]['ansible_host'] }}"
+
     - name: Gather facts
       ios_facts:
-      
       register: facts
 
     - debug: var=facts.stdout_lines
