@@ -1,0 +1,10 @@
+- name: Check Cisco IOS connections
+  hosts: all
+  tasks:
+    - name: Gather facts
+      ios_facts:
+      
+      register: facts
+
+    - debug: var=facts.stdout_lines
+
