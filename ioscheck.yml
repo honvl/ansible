@@ -2,10 +2,16 @@
   hosts: all
   collections:
     - cisco.ios
+  vars:
+    cli:
+      host: “{{ inventory_hostname }}”
+      username: cisco
+      password: cisco
+  
   tasks:
     - name: Gather facts
       ios_facts:
-        provider: '{{ provider }}'
+        provider: '{{ cli }}'
       register: facts
 
     - debug: var=facts.stdout_lines
