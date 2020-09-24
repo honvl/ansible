@@ -5,6 +5,7 @@
   tasks:
     - name: Gather facts
       ios_facts:
+        provider: '{{ provider }}'
       register: facts
 
     - debug: var=facts.stdout_lines
