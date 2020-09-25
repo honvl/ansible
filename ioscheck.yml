@@ -1,9 +1,9 @@
 - name: Check Cisco IOS connections
   hosts: all
-  ansible_connection: network_cli
-  ansible_network_os: ios
+  connection: network_cli
 
   vars:
+    ansible_network_os: ios
     cli:
       host: '{{ host }}'
       username: '{{ username }}'
@@ -16,4 +16,5 @@
       register: facts
 
     - debug: var=facts.stdout_lines
+
 
