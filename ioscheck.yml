@@ -4,9 +4,9 @@
     - cisco.ios
   vars:
     cli:
-      host: “{{ inventory_hostname }}”
-      username: cisco
-      password: cisco
+      host: '{{ host }}'
+      username: '{{ username }}'
+      password: '{{ password }}'
   
   tasks:
     - name: Gather facts
