@@ -1,6 +1,5 @@
 - name: Check Cisco IOS connections
   hosts: all
-  gather_facts: no
  
   tasks:
     - name: Gather facts
@@ -8,8 +7,4 @@
       register: facts
 
     - debug: var=facts.stdout_lines
-
-
- #   - debug: var=ansible_facts.keys()
-
 
