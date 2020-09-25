@@ -1,17 +1,17 @@
 - name: Check Cisco IOS connections
   hosts: all
-  gather_facts: yes
+  gather_facts: no
  
   tasks:
- #   - name: Gather facts
- #     cisco.ios.ios_facts:
- #       host: '{{ host }}'
- #       username: '{{ username }}'
- #       password: '{{ password }}'
- #     register: facts
+    - name: Gather facts
+      cisco.ios.ios_facts:
+        host: '{{ host }}'
+        username: '{{ username }}'
+        password: '{{ password }}'
+      register: facts
 
- #   - debug: var=facts.stdout_lines
+    - debug: var=facts.stdout_lines
 
-    - debug: var=ansible_facts.keys()
+ #   - debug: var=ansible_facts.keys()
 
 
