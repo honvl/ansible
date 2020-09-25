@@ -1,18 +1,16 @@
 - name: Check Cisco IOS connections
   hosts: all
-  connection: network_cli
 
-  vars:
-    ansible_network_os: ios
-    cli:
-      host: '{{ host }}'
-      username: '{{ username }}'
-      password: '{{ password }}'
+#  vars:
+#    cli:
+#      host: '{{ host }}'
+#      username: '{{ username }}'
+#      password: '{{ password }}'
   
   tasks:
     - name: Gather facts
       cisco.ios.ios_facts:
-        provider: '{{ cli }}'
+#        provider: '{{ cli }}'
       register: facts
 
     - debug: var=facts.stdout_lines
