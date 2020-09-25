@@ -1,7 +1,5 @@
 - name: Check Cisco IOS connections
   hosts: all
-  collections:
-    - cisco.ios
   vars:
     cli:
       host: '{{ host }}'
@@ -10,7 +8,7 @@
   
   tasks:
     - name: Gather facts
-      ios_facts:
+      cisco.ios.ios_facts:
         provider: '{{ cli }}'
       register: facts
 
