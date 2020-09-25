@@ -2,9 +2,6 @@
   hosts: all
  
   tasks:
-    - name: Gather facts
-      cisco.ios.ios_facts:
-      register: facts
-
-    - debug: var=facts.stdout_lines
-
+    - name: run show version on remote devices
+      cisco.ios.ios_command:
+        commands: show version
