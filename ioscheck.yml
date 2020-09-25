@@ -1,5 +1,6 @@
 - name: Check Cisco IOS connections
   hosts: all
+  gather_facts: false
  
   tasks:
     - name: run show version on remote devices
