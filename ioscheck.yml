@@ -3,19 +3,19 @@
   gather_facts: no
  
   vars:
-    provider:
-      host: '{{ host }}'
-      username: '{{ username }}'
-      password: '{{ password }}'  
+#    provider:
+#      host: '{{ host }}'
+#      username: '{{ username }}'
+#      password: '{{ password }}'  
 
   tasks:
     - name: Gather facts
       cisco.ios.ios_facts:
-        provider: '{{ provider }}'
+#        provider: '{{ provider }}'
       register: facts
 
     - debug: var=facts.stdout_lines
-    
+
 
  #   - debug: var=ansible_facts.keys()
 
