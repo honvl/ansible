@@ -2,16 +2,9 @@
   hosts: all
   gather_facts: no
  
-  vars:
-#    provider:
-#      host: '{{ host }}'
-#      username: '{{ username }}'
-#      password: '{{ password }}'  
-
   tasks:
     - name: Gather facts
       cisco.ios.ios_facts:
-#        provider: '{{ provider }}'
       register: facts
 
     - debug: var=facts.stdout_lines
