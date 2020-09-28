@@ -5,3 +5,4 @@
   tasks:
     - name: run show version on remote devices
       cisco.ios.ios_facts:
+        timeout: 10
