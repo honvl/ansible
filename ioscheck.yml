@@ -3,6 +3,6 @@
   gather_facts: false
  
   tasks:
-    - name: run show version on remote devices
+    - name: IOS Facts
       cisco.ios.ios_facts:
         timeout: 10
