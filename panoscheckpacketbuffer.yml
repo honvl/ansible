@@ -9,3 +9,9 @@
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
       cmd: 'show running resource-monitor hour'
+  - name: Palo Alto resource monitor day
+    panos_op:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      cmd: 'show running resource-monitor day'
