@@ -1,0 +1,28 @@
+- hosts: '{{ target | default("firewall") }}'
+  connection: local
+  collections:
+    - paloaltonetworks.panos
+  tasks:
+  - name: Palo Alto check
+    panos_check:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      timeout: 15
+  - name: Palo Alto configure t
+    panos_op:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      cmd: 'config t'
+  - name: Palo Alto set bypass
+    panos_op:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      cmd: 'set deviceconfig setting tcp allow-challenge-ack yes'
+  - name: Palo Alto set bypass
+    panos_commit:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
