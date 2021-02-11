@@ -9,19 +9,18 @@
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
       timeout: 15
-  - name: Palo Alto configure t
-    panos_op:
+  - name: Palo Alto set bypass
+    panos_type_cmd:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
-      cmd: 'config t'
-  - name: Palo Alto set bypass
-    panos_op:
-      username: '{{ username }}'
-      password: '{{ password }}'
-      ip_address: '{{ inventory_hostname }}'
-      cmd: 'set deviceconfig setting tcp allow-challenge-ack yes'
-  - name: Palo Alto set bypass
+      cmd: 'set'
+      xpath: |
+        /config/devices/entry[@name='localhost.localdomain']
+        /deviceconfig/setting/tcp
+      element: |
+        <allow-challenge-ack>yes</allow-challenge-ack>
+  - name: Palo Alto commit
     panos_commit:
       username: '{{ username }}'
       password: '{{ password }}'
