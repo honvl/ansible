@@ -1,0 +1,27 @@
+- hosts: '{{ target | default("panorama_ha_pair") }}'
+  connection: local
+
+  vars:
+    primary:
+      ip_address: '{{ primary_ip_address }}'
+      username: '{{ username | default(omit) }}'
+      password: '{{ password | default(omit) }}'
+      api_key: '{{ api_key | default(omit) }}'
+
+    secondary:
+      ip_address: '{{ secondary_ip_address }}'
+      username: '{{ username | default(omit) }}'
+      password: '{{ password | default(omit) }}'
+      api_key: '{{ api_key | default(omit) }}'
+
+
+  tasks:
+    - name: Palo Alto check primary
+      paloaltonetworks.panos.panos_op:
+        provider: '{{ primary }}'
+        cmd: 'show system info'
+
+    - name: Palo Alto check secondary
+      paloaltonetworks.panos.panos_op:
+        provider: '{{ secondary }}'
+        cmd: 'show system info'
