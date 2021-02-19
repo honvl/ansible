@@ -65,38 +65,6 @@
 
   tasks:
 
-    - name: Check that primary is up and passive
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
-        cmd: 'show high-availability state'
-      register: primary_passive
-      retries: 30
-      delay: 60
-      until: primary_passive is not failed and
-             (primary_passive.stdout | from_json).response.result.enabled == 'yes' and
-             (primary_passive.stdout | from_json).response.result["local-info"].state == 'primary-passive' and
-             (primary_passive.stdout | from_json).response.result["running-sync"] == 'synchronized'
-      when: not major_version_upgrade|bool
-
-    # Special case, Panorama HA doesn't work across major versions like firewalls, so primary will be non-functional.
-    - name: Check that primary is up and non-functional
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
-        cmd: 'show high-availability state'
-      register: primary_nf
-      retries: 30
-      delay: 60
-      until: primary_nf is not failed and
-             (primary_nf.stdout | from_json).response.result.enabled == 'yes' and
-             (primary_nf.stdout | from_json).response.result["local-info"].state == 'primary-non-functional' and
-             (primary_nf.stdout | from_json).response.result["local-info"]["state-reason"] == 'Peer version not compatible'
-      when: major_version_upgrade|bool
-
-    - name: Pause for verification
-      pause:
-        prompt: 'Primary upgrade complete.  Pausing for verification.'
-      when: pause_mid_upgrade
-
     - name: Suspend secondary device
       paloaltonetworks.panos.panos_op:
         provider: '{{ secondary }}'
