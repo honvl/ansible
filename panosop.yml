@@ -8,4 +8,4 @@
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
-      cmd: 'show system info'
+      cmd: 'show ntp'
