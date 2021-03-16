@@ -1,0 +1,7 @@
+- name: Check Cisco NXOS connections
+  hosts: all
+  gather_facts: false
+ 
+  tasks:
+    - name: NXOS Facts
+      cisco.nxos.nxos_facts:
