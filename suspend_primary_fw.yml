@@ -61,6 +61,16 @@
 
   tasks:
 
+    - name: State sync check (secondary)
+      paloaltonetworks.panos.panos_op:
+        provider: '{{ secondary }}'
+        cmd: 'show high-availability state'
+      register: secondary_state_sync
+      retries: 10
+      delay: 30
+      until: ( secondary_state_sync.stdout | from_json).response.result.group["local-info"].state == 'passive' and
+             ( secondary_state_sync.stdout | from_json).response.result.group["local-info"]["state-sync"] == 'Complete'
+
     - name: Suspend primary device
       paloaltonetworks.panos.panos_op:
         provider: '{{ primary }}'
