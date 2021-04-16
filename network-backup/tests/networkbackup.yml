@@ -1,3 +1,7 @@
+#network_backup_dir: /home/ciscobackups/
+#network_backup_file: '{{ network_backup_dir }}/{{ ansible_net_hostname }} {{ mydate }}.cfg'
+
+
 - name: Backup configurations
   hosts: all
   gather_facts: yes
