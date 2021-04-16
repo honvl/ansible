@@ -1,9 +1,0 @@
-- name: Check Cisco NXOS connections
-  hosts: all
-  gather_facts: false
-  connection: network_cli
-
-  tasks:
-    - include_role:
-        name: network-backup
-        
