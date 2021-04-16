@@ -1,6 +1,6 @@
 - name: Backup configurations
   hosts: all
-  gather_facts: no
+  gather_facts: yes
   connection: network_cli
   tasks:
     - set_fact: mydate="{{lookup('pipe','date +%Y-%m-%d')}}"
