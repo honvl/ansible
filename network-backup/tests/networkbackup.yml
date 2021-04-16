@@ -1,4 +1,8 @@
-- hosts: all
+- name: Make sure we have localhost facts
+  hosts: localhost
+
+- name: Backup configurations
+  hosts: all
   gather_facts: yes
   connection: network_cli
   tasks:
