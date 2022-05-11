@@ -16,7 +16,7 @@
 #        body: '{{ datapath }}'
     - name: Send summary mail
       local_action:
-        module: community.general.mail    
+        module: mail    
         host: outlook.dpw.com
         port: 25
         to: Networking <networking@davispolk.com>
