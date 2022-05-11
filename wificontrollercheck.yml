@@ -3,8 +3,8 @@
   gather_facts: no
   tasks:
     - name: run datapath frame command
-      community.network.aruba_command: show datapath frame
-#      register: datapath
+      raw: show datapath frame
+      register: datapath
 #    - name: send e-mail with info
 #      hosts: 127.0.0.1
 #      connection: local
@@ -21,5 +21,5 @@
         port: 25
         to: Networking <networking@davispolk.com>
         subject: PY WiFi controller show datapath frame
-#        body: '{{ datapath }}'
+        body: '{{ datapath }}'
       run_once: True
