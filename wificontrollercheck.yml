@@ -5,4 +5,10 @@
     - name: run datapath frame command
       raw: show datapath frame
       register: datapath
-
+    - name: send e-mail with info
+      mail:
+        host: outlook.dpw.com
+        port: 25
+        to: Networking <networking@davispolk.com>
+        subject: PY WiFi controller show datapath frame
+        body: '{{ datapath }}'
