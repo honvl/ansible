@@ -1,0 +1,8 @@
+- name: Hello World Sample
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: run datapath frame command
+      command: show datapath frame
+      register: datapath
+
