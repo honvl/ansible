@@ -3,9 +3,11 @@
   gather_facts: no
   tasks:
     - name: run datapath frame command
-      raw: show datapath frame
+      community.network.aruba_command: show datapath frame
       register: datapath
     - name: send e-mail with info
+      hosts: 127.0.0.1
+      connection: local
       mail:
         host: outlook.dpw.com
         port: 25
