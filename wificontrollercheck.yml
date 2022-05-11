@@ -4,7 +4,7 @@
   tasks:
     - name: run datapath frame command
       community.network.aruba_command: show datapath frame
-      register: datapath
+#      register: datapath
 #    - name: send e-mail with info
 #      hosts: 127.0.0.1
 #      connection: local
@@ -14,3 +14,12 @@
 #        to: Networking <networking@davispolk.com>
 #        subject: PY WiFi controller show datapath frame
 #        body: '{{ datapath }}'
+    - name: Send summary mail
+      local_action:
+        module: community.general.mail    
+        host: outlook.dpw.com
+        port: 25
+        to: Networking <networking@davispolk.com>
+        subject: PY WiFi controller show datapath frame
+#        body: '{{ datapath }}'
+      run_once: True
