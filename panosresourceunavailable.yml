@@ -1,0 +1,18 @@
+- hosts: all
+  connection: local
+  collections:
+    - paloaltonetworks.panos
+  tasks:
+  - name: Palo Alto set ctd pkt-proc-loop-low
+    panos_op:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      cmd: 'set system setting ctd pkt-proc-loop-low 8190'
+  - name: Palo Alto set ctd pkt-proc-loop-high
+    panos_op:
+      username: '{{ username }}'
+      password: '{{ password }}'
+      ip_address: '{{ inventory_hostname }}'
+      cmd: 'set system setting ctd pkt-proc-loop-high 8190'
+    

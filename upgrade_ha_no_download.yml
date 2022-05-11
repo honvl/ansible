@@ -31,6 +31,8 @@
 # =====
 #
 # HA pairs with preemption enabled are not supported by this playbook.
+#
+# Use this when it fails because another install was happening when it tried to run install on the primary.
 
 - hosts: '{{ target | default("ha_pair") }}'
   connection: local
