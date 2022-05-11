@@ -22,5 +22,9 @@
         from: ansible@davispolk.com
         to: networking@davispolk.com
         subject: PY WiFi controller monitor (crash at 64K allocated)
-        body: '{{ datapath.stdout_lines }}'
+#        body: '{{ datapath.stdout_lines }}'
+        body: |
+              '{% for line in datapath.stdout_lines %}
+                {{ line }}
+                {% endfor %}'
       run_once: True
