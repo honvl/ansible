@@ -21,6 +21,6 @@
         port: 25
         from: ansible@davispolk.com
         to: networking@davispolk.com
-        subject: PY WiFi controller show datapath frame
-        body: '{{ datapath }}'
+        subject: PY WiFi controller monitor (crash at 64K allocated)
+        body: '{{ datapath.stdout }}'
       run_once: True
