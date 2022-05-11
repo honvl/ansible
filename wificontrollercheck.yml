@@ -19,7 +19,7 @@
         module: mail    
         host: outlook.dpw.com
         port: 25
-        to: Networking <networking@davispolk.com>
+        to: networking@davispolk.com
         subject: PY WiFi controller show datapath frame
         body: '{{ datapath }}'
       run_once: True
