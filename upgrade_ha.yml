@@ -107,7 +107,7 @@
         download: false
         restart: true
       register: installresult
-      until: installresult.changed
+      until: installresult is not failed
       delay: 10
 
     - name: Pause for restart
@@ -166,7 +166,7 @@
         download: false
         restart: true
       register: installresult
-      until: installresult.changed
+      until: installresult is not failed
       delay: 10
 
     - name: Pause for restart
