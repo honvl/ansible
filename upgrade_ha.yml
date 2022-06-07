@@ -106,6 +106,9 @@
         version: '{{ version }}'
         download: false
         restart: true
+      register: installresult
+      until: installresult is not failed
+      delay: 10
 
     - name: Pause for restart
       pause:
@@ -162,6 +165,9 @@
         version: '{{ version }}'
         download: false
         restart: true
+      register: installresult
+      until: installresult is not failed
+      delay: 10
 
     - name: Pause for restart
       pause:
