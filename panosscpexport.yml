@@ -1,11 +1,24 @@
-- hosts: all
-  connection: local
-  collections:
-    - paloaltonetworks.panos
+- name: Palo Alto SCP export
+  hosts: all
+  gather_facts: no
   tasks:
-  - name: Palo Alto SCP export
-    panos_type_cmd:
-      username: '{{ username }}'
-      password: '{{ password }}'
-      ip_address: '{{ inventory_hostname }}'
-      cmd: 'scp export log traffic max-log-count 1048576 start-time equal 2022/05/02@12:00:00 end-time equal 2022/05/02@12:30:00 to telecom@10.204.57.53:panscpexport1'
+    - name: Palo Alto SCP export
+ #     raw: scp export log traffic max-log-count 1048576 start-time equal 2022/05/02@12:00:00 end-time equal 2022/05/02@12:30:00 to telecom@10.204.57.53:panscpexportauto
+ #     register: datapath
+        ansible.builtin.expect:
+          command: scp export log traffic max-log-count 1048576 start-time equal 2022/05/02@12:00:00 end-time equal 2022/05/02@12:30:00 to telecom@10.204.57.53:panscpexportauto
+          responses:
+            Password: "{{scppassword}}"
+
+
+#- hosts: all
+#  connection: local
+#  collections:
+#    - paloaltonetworks.panos
+#  tasks:
+#  - name: Palo Alto SCP export
+#    panos_type_cmd:
+#      username: '{{ username }}'
+#      password: '{{ password }}'
+#      ip_address: '{{ inventory_hostname }}'
+#      cmd: 'scp export log traffic max-log-count 1048576 start-time equal 2022/05/02@12:00:00 end-time equal 2022/05/02@12:30:00 to telecom@10.204.57.53:panscpexport1'
