@@ -4,7 +4,7 @@
     - paloaltonetworks.panos
   tasks:
   - name: Palo Alto SCP export
-    panos_op:
+    panos_type_cmd:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
