@@ -2,27 +2,23 @@
   hosts: all
   gather_facts: no
   tasks:
-    - name: run datapath frame command
-      raw: |
-        no paging
-        show datpath utilization
-        show port stats
-        show acl hits
-        show datapath frame
-        show datapath frame all
-        show datapath crypto counters
-        show datapath debug opcode
-        show datapath debug eth1info
-      register: datapath
-#    - name: send e-mail with info
-#      hosts: 127.0.0.1
-#      connection: local
-#      mail:
-#        host: outlook.dpw.com
-#        port: 25
-#        to: Networking <networking@davispolk.com>
-#        subject: PY WiFi controller show datapath frame
-#        body: '{{ datapath }}'
+    - raw: no paging
+    - raw: show datapath utilization
+      register: datapath2
+    - raw: show port stats
+      register: datapath3
+    - raw: show acl hits
+      register: datapath4
+    - raw: show datapath frame
+      register: datapath5
+    - raw: show datapath frame all
+      register: datapath6
+    - raw: show datapath crypto counters
+      register: datapath7
+    - raw: show datapath debug opcode
+      register: datapath8
+    - raw: show datapath debug eth1info
+      register: datapath9
     - name: Send summary mail
       local_action:
         module: mail    
@@ -31,9 +27,29 @@
         from: ansible@davispolk.com
         to: networking@davispolk.com
         subject: PY WiFi controller debug
-#        body: '{{ datapath.stdout_lines }}'
         body: |
-              {% for line in datapath.stdout_lines %}
+              {% for line in datapath2.stdout_lines %}
                 {{ line }}
                 {% endfor %}
+              {% for line in datapath3.stdout_lines %}
+                {{ line }}
+                {% endfor %}
+              {% for line in datapath4.stdout_lines %}
+                {{ line }}
+                {% endfor %}
+              {% for line in datapath5.stdout_lines %}
+                {{ line }}
+                {% endfor %}
+              {% for line in datapath6.stdout_lines %}
+                {{ line }}
+                {% endfor %}
+              {% for line in datapath7.stdout_lines %}
+                {{ line }}
+                {% endfor %}
+              {% for line in datapath8.stdout_lines %}
+                {{ line }}
+                {% endfor %}
+              {% for line in datapath9.stdout_lines %}
+                {{ line }}
+                {% endfor %}                                                                                                              
       run_once: True
