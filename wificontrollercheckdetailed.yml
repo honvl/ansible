@@ -26,7 +26,7 @@
         port: 25
         from: ansible@davispolk.com
         to: networking@davispolk.com
-        subject:  RE: 5363881161 - AOS - controller rebooted - ref:_00Dd0bUlK._5004oPFihQ:ref
+        subject:  'RE: 5363881161 - AOS - controller rebooted - ref:_00Dd0bUlK._5004oPFihQ:ref'
         body: |
               {% for line in datapath2.stdout_lines %}
                 {{ line }}
