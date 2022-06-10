@@ -1,0 +1,39 @@
+- name: WiFi controller check
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: run datapath frame command
+      raw: |
+        no paging
+        show datpath utilization
+        show port stats
+        show acl hits
+        show datapath frame
+        show datapath frame all
+        show datapath crypto counters
+        show datapath debug opcode
+        show datapath debug eth1info
+      register: datapath
+#    - name: send e-mail with info
+#      hosts: 127.0.0.1
+#      connection: local
+#      mail:
+#        host: outlook.dpw.com
+#        port: 25
+#        to: Networking <networking@davispolk.com>
+#        subject: PY WiFi controller show datapath frame
+#        body: '{{ datapath }}'
+    - name: Send summary mail
+      local_action:
+        module: mail    
+        host: outlook.dpw.com
+        port: 25
+        from: ansible@davispolk.com
+        to: networking@davispolk.com
+        subject: PY WiFi controller monitor (crash at 64K allocated)
+#        body: '{{ datapath.stdout_lines }}'
+        body: |
+              {% for line in datapath.stdout_lines %}
+                {{ line }}
+                {% endfor %}
+      run_once: True
