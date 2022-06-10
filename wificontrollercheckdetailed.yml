@@ -30,7 +30,7 @@
         port: 25
         from: ansible@davispolk.com
         to: networking@davispolk.com
-        subject: PY WiFi controller monitor (crash at 64K allocated)
+        subject: PY WiFi controller debug
 #        body: '{{ datapath.stdout_lines }}'
         body: |
               {% for line in datapath.stdout_lines %}
