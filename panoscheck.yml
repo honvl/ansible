@@ -1,7 +1,5 @@
 - hosts: '{{ target | default("firewall") }}'
   connection: local
-  collections:
-    - paloaltonetworks.panos
   tasks:
     - name: Palo Alto check
       paloaltonetworks.panos.panos_check:
