@@ -4,13 +4,13 @@
     - paloaltonetworks.panos
   tasks:
   - name: Palo Alto check
-    panos_check:
+    paloaltonetworks.panos.panos_check:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
       timeout: 15
   - name: Palo Alto set bypass
-    panos_type_cmd:
+    paloaltonetworks.panos.panos_type_cmd:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -21,7 +21,7 @@
       element: |
         <allow-challenge-ack>yes</allow-challenge-ack>
   - name: Palo Alto commit
-    panos_commit:
+    paloaltonetworks.panos.panos_commit:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'

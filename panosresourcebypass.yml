@@ -4,7 +4,7 @@
     - paloaltonetworks.panos
   tasks:
   - name: Apply "set session resource-limit-behavior bypass" command 
-    panos_op:
+    paloaltonetworks.panos.panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'

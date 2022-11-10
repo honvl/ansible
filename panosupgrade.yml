@@ -6,7 +6,7 @@
     - paloaltonetworks.panos
   tasks:
   - name: Palo Alto HA status confirm passive
-    panos_op:
+    paloaltonetworks.panos.panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -15,7 +15,7 @@
     until: result.stdout_xml.find("<preempt-hold>1</preempt-hold><state>passive</state>") != -1
 
   - name: Download Pan-OS 9.0.0 base image only
-    panos_software:
+    paloaltonetworks.panos.panos_software:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -24,7 +24,7 @@
       restart: false
 
   - name: Download Pan-OS 9.0.9-h1 and restart
-    panos_software:
+    paloaltonetworks.panos.panos_software:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -33,7 +33,7 @@
       restart: true        
 
   - name: Wait for FW reboot
-    panos_check:
+    paloaltonetworks.panos.panos_check:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -43,7 +43,7 @@
     delay: 5
 
   - name: Palo Alto HA status confirm passive
-    panos_op:
+    paloaltonetworks.panos.panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -59,7 +59,7 @@
   connection: local
   tasks:
   - name: Download Pan-OS 9.0.0 base image only
-    panos_software:
+    paloaltonetworks.panos.panos_software:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -68,7 +68,7 @@
       restart: false    
 
   - name: Download Pan-OS 9.0.9-h1 and restart
-    panos_software:
+    paloaltonetworks.panos.panos_software:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -77,7 +77,7 @@
       restart: true  
 
   - name: Wait for FW reboot
-    panos_check:
+    paloaltonetworks.panos.panos_check:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -87,7 +87,7 @@
     delay: 5
 
   - name: Download Pan-OS 9.1.0 base image only
-    panos_software:
+    paloaltonetworks.panos.panos_software:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -96,7 +96,7 @@
       restart: false 
 
   - name: Download Pan-OS 9.1.3-h1 and restart
-    panos_software:
+    paloaltonetworks.panos.panos_software:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -105,7 +105,7 @@
       restart: true 
 
   - name: Wait for FW reboot
-    panos_check:
+    paloaltonetworks.panos.panos_check:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -115,7 +115,7 @@
     delay: 5
 
   - name: Palo Alto HA status confirm passive
-    panos_op:
+    paloaltonetworks.panos.panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -133,7 +133,7 @@
   tasks:
 
   - name: Download Pan-OS 9.1.0 base image only
-    panos_software:
+    paloaltonetworks.panos.panos_software:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -142,7 +142,7 @@
       restart: false 
 
   - name: Download Pan-OS 9.1.3-h1 and restart
-    panos_software:
+    paloaltonetworks.panos.panos_software:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
@@ -151,7 +151,7 @@
       restart: true 
 
   - name: Wait for FW reboot
-    panos_check:
+    paloaltonetworks.panos.panos_check:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'

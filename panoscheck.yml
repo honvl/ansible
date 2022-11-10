@@ -4,7 +4,7 @@
     - paloaltonetworks.panos
   tasks:
   - name: Palo Alto check
-    panos_check:
+    paloaltonetworks.panos.panos_check:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'

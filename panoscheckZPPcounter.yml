@@ -4,13 +4,13 @@
     - paloaltonetworks.panos
   tasks:
   - name: Palo Alto Trusted zone
-    panos_op:
+    paloaltonetworks.panos.panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
       cmd: 'show zone-protection zone Trust'
   - name: Palo Alto DMZ zone
-    panos_op:
+    paloaltonetworks.panos.panos_op:
       username: '{{ username }}'
       password: '{{ password }}'
       ip_address: '{{ inventory_hostname }}'
