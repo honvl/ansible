@@ -5,7 +5,8 @@
   tasks:
   - name: Palo Alto info
     paloaltonetworks.panos.panos_op:
-      username: '{{ username }}'
-      password: '{{ password }}'
-      ip_address: '{{ inventory_hostname }}'
+      provider:
+        username: '{{ username }}'
+        password: '{{ password }}'
+        ip_address: '{{ inventory_hostname }}'
       cmd: 'show ntp'
