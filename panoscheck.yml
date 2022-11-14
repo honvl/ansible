@@ -3,8 +3,9 @@
   tasks:
     - name: Palo Alto check
       paloaltonetworks.panos.panos_check:
-        username: '{{ username }}'
-        password: '{{ password }}'
-        ip_address: '{{ inventory_hostname }}'
+        provider:
+          username: '{{ username }}'
+          password: '{{ password }}'
+          ip_address: '{{ inventory_hostname }}'
         timeout: 15
 ##
