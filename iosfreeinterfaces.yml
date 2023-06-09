@@ -6,3 +6,4 @@
     - name: IOS Facts
       cisco.ios.ios_facts:
         gather_network_resources: l2_interfaces
+        gather_subset: all
