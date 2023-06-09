@@ -1,0 +1,8 @@
+- name: Check for free Cisco switch interfaces
+  hosts: all
+  gather_facts: false
+ 
+  tasks:
+    - name: IOS Facts
+      cisco.ios.ios_facts:
+        gather_network_resource: l2_interfaces
