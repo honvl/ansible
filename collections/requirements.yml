@@ -2,3 +2,5 @@
 collections:
   - name: paloaltonetworks.panos
     version: 2.9.0
+
+  - name: cisco.ios
