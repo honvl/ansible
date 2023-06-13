@@ -25,10 +25,10 @@
         {{ ansible_net_hostname }},{{ ansible_net_image }},{{ ansible_net_iostype }},{{ ansible_net_model }},{{ ansible_net_serialnum }},{{ ansible_net_system }},{{ ansible_net_version }},{{ ansible_net_filesystems_info['flash:']['spacetotal_kb'] }},{{ ansible_net_filesystems_info['flash:']['spacefree_kb'] }}
 
   - name: CSV - Write information into .csv file
-      lineinfile:
-    insertafter: EOF
-    dest: "{{ output_path }}/{{ filename }}"
-    line: "{{ csv_tmp }}"
+    lineinfile:
+      insertafter: EOF
+      dest: "{{ output_path }}/{{ filename }}"
+      line: "{{ csv_tmp }}"
 
   - name: CSV - Blank lines removal
     lineinfile:
