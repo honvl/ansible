@@ -4,7 +4,7 @@
    
   vars:
     output_path: "/home/ansiblereports/"
-    filename: "device_report_{{ date }}.csv"
+    filename: "free_interfaces_{{ date }}.csv"
 
   tasks:
 
@@ -29,10 +29,6 @@
       csv_tmp: >
         {{ fact[ansible_net_hostname] }},{{ fact[ansible_net_interfaces] }},{{ fact[ansible_net_interfaces[description]] }},{{ fact[ansible_net_interfaces[lineprotocol]] }},{{ fact[ansible_net_interfaces[operstatus]] }},{{ fact[ansible_net_hostname] }},{{ fact[ansible_net_hostname] }}
 
-    - name: Print facts
-      debug:
-        msg: "{{fact[ansible_net_interfaces]}}"
-
     - name: CSV - Write information into .csv file
       lineinfile:
         insertafter: EOF
@@ -40,7 +36,7 @@
         line: "{{ csv_tmp }}"
 
     - name: CSV - Blank lines removal
-        lineinfile:
+      lineinfile:
         path: "./{{ output_path }}/{{ filename }}"
         state: absent
         regex: '^\s*$'
