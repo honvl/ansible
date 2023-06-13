@@ -23,19 +23,15 @@
       cisco.ios.ios_facts:
         gather_network_resources: l2_interfaces
         gather_subset: all
-      register: fact
+      register: fact['ansible_facts']
     
- #   - name: CSV - Get IOS devices facts
- #     set_fact:
- #       csv_tmp: >
- #         {{ fact[ansible_net_hostname] }},{{ fact[ansible_net_interfaces] }},{{ fact[ansible_net_interfaces[description]] }},{{ fact[ansible_net_interfaces[lineprotocol]] }},{{ fact[ansible_net_interfaces[operstatus]] }},{{ fact[ansible_net_hostname] }},{{ fact[ansible_net_hostname] }}
-
     - name: CSV - Write information into .csv file
       lineinfile:
         insertafter: EOF
         dest: "{{ output_path }}/{{ filename }}"
-        line: "{{ fact.ansible_facts.ansible_net_hostname }},{{ item.key }},{{ item.value.description | default('') }},{{ item.value.lineprotocol }},{{ item.value.operstatus }},{{ item }},{{ item }}"
-      loop: "{{ fact['ansible_facts']['ansible_net_interfaces'] | dict2items }}"
+        line: "{{ fact.ansible_net_hostname }},{{ item.key }},{{ item.value.description | default('') }},{{ item.value.lineprotocol }},{{ item.value.operstatus }},"","""
+      loop: "{{ fact['ansible_net_interfaces'] | dict2items }}"
+      when: item.value.lineprotocol == "down"
       loop_control:
         loop_var: item
     - name: CSV - Blank lines removal
