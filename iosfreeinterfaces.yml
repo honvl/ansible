@@ -35,7 +35,7 @@
         insertafter: EOF
         dest: "{{ output_path }}/{{ filename }}"
         line: "{{ fact.ansible_net_hostname] }},{{ item }},{{ item.description }},{{ item.lineprotocol }},{{ item.operstatus }},{{ item }},{{ item }}"
-      loop: {{ fact.ansible_net_interfaces | dict2items }}
+      loop: "{{ fact.ansible_net_interfaces|dict2items }}"
       loop_control:
         loop_var: item
     - name: CSV - Blank lines removal
