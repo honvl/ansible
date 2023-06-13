@@ -15,14 +15,14 @@
     lineinfile:
       dest: "{{ output_path }}/{{ filename }}"
       line:
-        hostname,image,iostype,model,serialnum,system,version,spacefree_kb,spacetotal_kb
+        hostname,image,iostype,model,serialnum,system,version
       create: yes
       state: present
 
   - name: CSV - Get IOS devices facts
     set_fact:
       csv_tmp: >
-        {{ ansible_net_hostname }},{{ ansible_net_image }},{{ ansible_net_iostype }},{{ ansible_net_model }},{{ ansible_net_serialnum }},{{ ansible_net_system }},{{ ansible_net_version }},{{ ansible_net_filesystems_info['flash:']['spacetotal_kb'] }},{{ ansible_net_filesystems_info['flash:']['spacefree_kb'] }}
+        {{ ansible_net_hostname }},{{ ansible_net_image }},{{ ansible_net_iostype }},{{ ansible_net_model }},{{ ansible_net_serialnum }},{{ ansible_net_system }},{{ ansible_net_version }}
 
   - name: CSV - Write information into .csv file
     lineinfile:
