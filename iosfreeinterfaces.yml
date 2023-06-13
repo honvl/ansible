@@ -11,4 +11,4 @@
     
     - name: Print facts
       debug:
-        msg: "{{iosfacts.stdout}}"
+        msg: "{{iosfacts}}"
