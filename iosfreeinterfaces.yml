@@ -1,14 +1,34 @@
 - name: Check for free Cisco switch interfaces
   hosts: all
   gather_facts: false
- 
+   
+  vars:
+    output_path: "./reports/"
+    filename: "device_report_{{ date }}.csv"
+
   tasks:
+
+    - name: CSV - Generate output filename
+      set_fact: date="{{lookup('pipe','date +%Y%m%d')}}"
+      run_once: true
+
+    - name: CSV - Create file and set the header
+      lineinfile:
+        dest: "{{ output_path }}/{{ filename }}"
+        line:
+          hostname,interface,description,lineprotocol,operstatus,accessvlan,voicevlan
+        create: yes
+        state: present
     - name: IOS Facts
       cisco.ios.ios_facts:
         gather_network_resources: l2_interfaces
         gather_subset: all
-      register: iosfacts
+      register: fact
     
+    - name: CSV - Get IOS devices facts
+      csv_tmp: >
+        {{ fact[ansible_net_hostname] }},{{ fact[ansible_net_interfaces] }},{{ fact[ansible_net_interfaces[description]] }},{{ fact[ansible_net_interfaces[lineprotocol]] }},{{ fact[ansible_net_interfaces[operstatus]] }},{{ fact[ansible_net_hostname] }},{{ fact[ansible_net_hostname] }}
+
     - name: Print facts
       debug:
-        msg: "{{iosfacts}}"
+        msg: "{{fact[ansible_net_interfaces]}}"
