@@ -51,8 +51,5 @@
         commands: show int counters
       register: counters_output
 
-    - name: CSV - Write counters into .csv file
-      lineinfile:
-        insertafter: EOF
-        dest: "{{ output_path }}/{{ filename }}"
-        line: "{{ counters_output.stdout_lines | join('\n') }}\n"
+    - name: Write counters into file
+      local_action: copy content="{{ counters_output.stdout[0] }}" dest="{{ output_path }}/{{ filename }}"
