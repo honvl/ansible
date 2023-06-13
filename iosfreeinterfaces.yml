@@ -13,6 +13,11 @@
         date="{{lookup('pipe','date +%Y%m%d')}}"
       run_once: true
 
+    - name: Delete old content
+      ansible.builtin.file:
+        state: absent
+        path: "{{ output_path }}/{{ filename }}"
+
     - name: CSV - Create file and set the header
       lineinfile:
         dest: "{{ output_path }}/{{ filename }}"
