@@ -25,19 +25,21 @@
         gather_subset: all
       register: fact
     
-    - name: CSV - Get IOS devices facts
-      set_fact:
-        csv_tmp: >
-          {{ fact[ansible_net_hostname] }},{{ fact[ansible_net_interfaces] }},{{ fact[ansible_net_interfaces[description]] }},{{ fact[ansible_net_interfaces[lineprotocol]] }},{{ fact[ansible_net_interfaces[operstatus]] }},{{ fact[ansible_net_hostname] }},{{ fact[ansible_net_hostname] }}
+ #   - name: CSV - Get IOS devices facts
+ #     set_fact:
+ #       csv_tmp: >
+ #         {{ fact[ansible_net_hostname] }},{{ fact[ansible_net_interfaces] }},{{ fact[ansible_net_interfaces[description]] }},{{ fact[ansible_net_interfaces[lineprotocol]] }},{{ fact[ansible_net_interfaces[operstatus]] }},{{ fact[ansible_net_hostname] }},{{ fact[ansible_net_hostname] }}
 
     - name: CSV - Write information into .csv file
       lineinfile:
         insertafter: EOF
         dest: "{{ output_path }}/{{ filename }}"
-        line: "{{ csv_tmp }}"
-
+        line: "{{ fact[ansible_net_hostname] }},{{ item }},{{ item.description }},{{ item.lineprotocol }},{{ item.operstatus }},{{ item }},{{ item }}"
+      loop: "{{ fact.ansible_net_interfaces | dict2items }}"
+      loop_control:
+        loop_var: item
     - name: CSV - Blank lines removal
       lineinfile:
-        path: "./{{ output_path }}/{{ filename }}"
+        path: "{{ output_path }}/{{ filename }}"
         state: absent
         regex: '^\s*$'
