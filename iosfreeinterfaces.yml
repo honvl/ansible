@@ -7,3 +7,8 @@
       cisco.ios.ios_facts:
         gather_network_resources: l2_interfaces
         gather_subset: all
+        register: iosfacts
+    
+    - name: Print facts
+      debug:
+        msg: {{iosfacts.stdout}}
