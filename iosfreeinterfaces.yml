@@ -29,7 +29,7 @@
       lineinfile:
         insertafter: EOF
         dest: "{{ output_path }}/{{ filename }}"
-        line: "{{ fact.ansible_net_hostname }},{{ item.key }},{{ item.value.description | default('') }},{{ item.value.lineprotocol }},{{ item.value.operstatus }},"","""
+        line: "{{ fact.ansible_net_hostname }},{{ item.key }},{{ item.value.description | default('') }},{{ item.value.lineprotocol }},{{ item.value.operstatus }},'',''"
       loop: "{{ fact['ansible_net_interfaces'] | dict2items }}"
       when: item.value.lineprotocol == "down"
       loop_control:
@@ -39,3 +39,7 @@
         path: "{{ output_path }}/{{ filename }}"
         state: absent
         regex: '^\s*$'
+ #   - name: Replace the content of my file
+ #       copy:
+ #         src: "{{ output_path }}/{{ filename }}"
+ #         dest: "{{ output_path }}/{{ filename }}"
