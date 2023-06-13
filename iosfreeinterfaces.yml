@@ -3,7 +3,7 @@
   gather_facts: false
    
   vars:
-    output_path: "./reports/"
+    output_path: "/home/ansiblereports/"
     filename: "device_report_{{ date }}.csv"
 
   tasks:
