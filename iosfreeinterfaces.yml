@@ -32,3 +32,15 @@
     - name: Print facts
       debug:
         msg: "{{fact[ansible_net_interfaces]}}"
+
+    - name: CSV - Write information into .csv file
+        lineinfile:
+      insertafter: EOF
+      dest: "{{ output_path }}/{{ filename }}"
+      line: "{{ csv_tmp }}"
+
+    - name: CSV - Blank lines removal
+      lineinfile:
+        path: "./{{ output_path }}/{{ filename }}"
+        state: absent
+        regex: '^\s*$'
