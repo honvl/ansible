@@ -55,7 +55,4 @@
       lineinfile:
         insertafter: EOF
         dest: "{{ output_path }}/{{ filename }}"
-        line: "{{ item }}"
-      loop: "{{ counters_output.stdout_lines }}"
-      loop_control:
-        loop_var: item
+        line: "{{ counters_output.stdout_lines | join('\n') }}\n"
