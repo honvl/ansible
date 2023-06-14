@@ -5,6 +5,7 @@
   vars:
     output_path: "/home/ansiblereports/"
     filename: "free_interfaces_{{ date }}.csv"
+    filename2: "free_interfaces2_{{ date }}.csv"
 
   tasks:
 
@@ -52,4 +53,4 @@
       register: counters_output
 
     - name: Write counters into file
-      local_action: copy content="{{ counters_output.stdout[0] }}" dest="{{ output_path }}/{{ filename }}"
+      local_action: copy content="{{ counters_output.stdout[0] }}" dest="{{ output_path }}/{{ filename2 }}"
