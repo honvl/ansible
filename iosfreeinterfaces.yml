@@ -54,3 +54,9 @@
 
     - name: Write counters into file
       local_action: copy content="{{ counters_output.stdout[0] }}" dest="{{ output_path }}/{{ filename2 }}"
+
+    - name: Replace old interface name with abbreviated interface name
+      ansible.builtin.replace:
+        path: "{{ output_path }}/{{ filename }}"
+        regexp: 'gabitEthernet'
+        replace: ''    
