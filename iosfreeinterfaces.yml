@@ -111,6 +111,8 @@
           column_to_move = df.pop("InBytes")
           df.insert(len(df.columns), "InBytes", column_to_move )
 
+          df.set_index('interface')
+
           # displaying result
           print(df)
 
