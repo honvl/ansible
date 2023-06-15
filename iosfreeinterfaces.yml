@@ -6,6 +6,7 @@
     output_path: "/home/ansiblereports/"
     filename: "free_interfaces_{{ date }}.csv"
     filename2: "free_interfaces2_{{ date }}.csv"
+    temp_path: "/home/ansiblereports/temp.csv"
 
   tasks:
 
@@ -85,4 +86,18 @@
         regexp: '(?s)Port,OutBytes.*'
         replace: '' 
 
-        
+    - name: Read CSV file
+      set_fact:
+        csv_content: "{{ lookup('csvfile', {{ output_path }}/{{ filename }}  | split('\n')) }}"
+
+    - name: Sort CSV by second column, interface number format
+      set_fact:
+        sorted_content: "{{ csv_content | sort_custom }}"
+
+    - name: Write sorted CSV file to temporary file
+      copy:
+        content: "{{ sorted_content | join('\n') }}"
+        dest: "{{ temp_path }}"      
+
+    - name: Replace original file with sorted content
+      command: mv "{{ temp_path }}" "{{ output_path }}/{{ filename }}"
