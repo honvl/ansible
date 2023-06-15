@@ -82,7 +82,7 @@
     - name: Delete OutBytes counters
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename2 }}"
-        regexp: 'Port,OutBytes.*'
+        regexp: '(?s)Port,OutBytes.*'
         replace: '' 
 
         
