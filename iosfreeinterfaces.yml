@@ -114,7 +114,7 @@
           # displaying result
           print(df)
 
-          df.to_csv('{{ output_path }}/{{ filename3 }}')
+          df.to_csv('{{ output_path }}/{{ filename3 }}', index = False)
 
 #      register: joinedcsv         
 #
