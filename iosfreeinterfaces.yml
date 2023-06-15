@@ -88,7 +88,7 @@
 
     - name: Read CSV file
       set_fact:
-        csv_content: "{{ lookup('csvfile', {{ output_path }}/{{ filename }}  | split('\n')) }}"
+        csv_content: "{{ lookup('csvfile', output_path + '/' + filename)  | split('\n') }}"
 
     - name: Sort CSV by second column, interface number format
       set_fact:
