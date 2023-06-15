@@ -89,7 +89,7 @@
         replace: 'interface'         
 
     - name: Python code for inner join of the two CSVs
-      command: /usr/bin/python3
+      command: python
       args:
         stdin: |
           import pandas as pd
@@ -107,7 +107,7 @@
           print(output1)
       register: joinedcsv         
 
-    - name: Write counters into file2
+    - name: Copy joined file into csv3
       local_action: copy content="{{ joinedcsv.stdout }}" dest="{{ output_path }}/{{ filename3 }}"
 
 #    - name: Read CSV file
