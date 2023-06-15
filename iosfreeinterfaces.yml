@@ -30,7 +30,7 @@
         line: hostname,interface,description,lineprotocol,operstatus,accessvlan,voicevlan
         create: yes
         state: present
-        
+
     - name: IOS Facts
       cisco.ios.ios_facts:
         gather_network_resources: l2_interfaces
@@ -73,10 +73,10 @@
         regexp: 'GigabitEthernet'
         replace: 'Gi'    
 
-    - name: Replace whitespace with commas to make csv
+    - name: Replace more than one whitespace with commas to make csv
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename2 }}"
-        regexp: ' *'
+        regexp: '[ ]{2,}'
         replace: ',' 
 
 
