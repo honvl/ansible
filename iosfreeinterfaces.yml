@@ -106,9 +106,7 @@
           # find interfaces with 0 Bytes
           df = output1[output1['InBytes'] == 0]
 
-          df = df.drop('InUcastPkts')
-          df = df.drop('InMcastPkts')
-          df = df.drop('InBcastPkts')
+          df = df.drop(columns=['InUcastPkts','InMcastPkts','InBcastPkts'])
 
           column_to_move = df.pop("InBytes")
           df.insert(len(df.columns), "InBytes", column_to_move )
