@@ -104,12 +104,19 @@
                             how='inner')
 
           # find interfaces with 0 Bytes
-          output_filtered = output1[output1['InBytes'] == 0]
+          df = output1[output1['InBytes'] == 0]
+
+          df = df.drop('InUcastPkts')
+          df = df.drop('InMcastPkts')
+          df = df.drop('InBcastPkts')
+
+          column_to_move = df.pop("InBytes")
+          df.insert(len(df.columns), "InBytes", column_to_move )
 
           # displaying result
-          print(output_filtered)
+          print(df)
 
-          output_filtered.to_csv('{{ output_path }}/{{ filename3 }}')
+          df.to_csv('{{ output_path }}/{{ filename3 }}')
 
 #      register: joinedcsv         
 #
