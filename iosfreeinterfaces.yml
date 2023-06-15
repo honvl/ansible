@@ -102,11 +102,14 @@
           output1 = pd.merge(data2, data1, 
                             on='interface', 
                             how='inner')
-            
-          # displaying result
-          print(output1)
 
-          output1.to_csv('{{ output_path }}/{{ filename3 }}')
+          # find interfaces with 0 Bytes
+          output_filtered = output1[output1['InBytes'] == 0]
+
+          # displaying result
+          print(output_filtered)
+
+          output_filtered.to_csv('{{ output_path }}/{{ filename3 }}')
 
 #      register: joinedcsv         
 #
