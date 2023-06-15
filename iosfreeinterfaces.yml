@@ -19,12 +19,18 @@
         state: absent
         path: "{{ output_path }}/{{ filename }}"
 
+    - name: Delete old content2
+      ansible.builtin.file:
+        state: absent
+        path: "{{ output_path }}/{{ filename2 }}"        
+
     - name: CSV - Create file and set the header
       lineinfile:
         dest: "{{ output_path }}/{{ filename }}"
         line: hostname,interface,description,lineprotocol,operstatus,accessvlan,voicevlan
         create: yes
         state: present
+        
     - name: IOS Facts
       cisco.ios.ios_facts:
         gather_network_resources: l2_interfaces
