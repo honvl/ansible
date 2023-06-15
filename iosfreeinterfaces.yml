@@ -62,13 +62,13 @@
     - name: Write counters into file2
       local_action: copy content="{{ counters_output.stdout[0] }}" dest="{{ output_path }}/{{ filename2 }}"
 
-    - name: Replace old interface name with abbreviated interface name
+    - name: Replace old Te interface name with abbreviated interface name
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename }}"
         regexp: 'TenGigabitEthernet'
         replace: 'Te'    
 
-    - name: Replace old interface name with abbreviated interface name
+    - name: Replace old Gi interface name with abbreviated interface name
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename }}"
         regexp: 'GigabitEthernet'
@@ -88,7 +88,7 @@
 
     - name: Read CSV file
       set_fact:
-        csv_content: "{{ lookup('csvfile', output_path + '/' + filename)  | split('\n') }}"
+        csv_content: "{{ lookup('csvfile', output_path + '/' + filename) }}"
 
     - name: Sort CSV by second column, interface number format
       set_fact:
