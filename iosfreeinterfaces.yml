@@ -71,7 +71,7 @@
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename2 }}"
         regexp: ' *'
-        replace: '' 
+        replace: ',' 
 
 
 
