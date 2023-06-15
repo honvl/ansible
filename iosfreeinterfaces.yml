@@ -58,8 +58,14 @@
     - name: Replace old interface name with abbreviated interface name
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename }}"
-        regexp: 'gabitEthernet'
-        replace: ''    
+        regexp: 'TenGigabitEthernet'
+        replace: 'Te'    
+
+    - name: Replace old interface name with abbreviated interface name
+      ansible.builtin.replace:
+        path: "{{ output_path }}/{{ filename }}"
+        regexp: 'GigabitEthernet'
+        replace: 'Gi'    
 
     - name: Replace whitespace with commas to make csv
       ansible.builtin.replace:
