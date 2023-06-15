@@ -7,6 +7,7 @@
     filename: "free_interfaces_{{ date }}.csv"
     filename2: "free_interfaces2_{{ date }}.csv"
     temp_path: "/home/ansiblereports/temp.csv"
+    full_path: "/home/ansiblereports/free_interfaces_{{ date }}.csv"
 
   tasks:
 
@@ -88,7 +89,7 @@
 
     - name: Read CSV file
       set_fact:
-        csv_content: "{{ lookup('csvfile', output_path + '/' + filename) }}"
+        csv_content: "{{ lookup('csvfile', full_path) }}"
 
     - name: Sort CSV by second column, interface number format
       set_fact:
@@ -100,4 +101,4 @@
         dest: "{{ temp_path }}"      
 
     - name: Replace original file with sorted content
-      command: mv "{{ temp_path }}" "{{ output_path }}/{{ filename }}"
+      command: mv "{{ temp_path }}" "{{ full_path }}"
