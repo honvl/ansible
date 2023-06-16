@@ -177,19 +177,19 @@
 
           print(output2)
 
-      - name: Add file to list
-        set_fact:
-          files_to_email: "{{files_to_email + [ output_path + '/' + filename4 ] }}"
+    - name: Add file to list
+      set_fact:
+        files_to_email: "{{files_to_email + [ output_path + '/' + filename4 ] }}"
 
-      - name: Send mail with attachments
-        local_action:
-          module: mail    
-          host: outlook.dpw.com
-          port: 25
-          from: ansible@davispolk.com
-          to: honver.lam@davispolk.com
-          subject: Available switchports report for NY
-          body: |
-                Attached are spreadsheets that contain available switchports that can be reused.
-          attach: "{{ files_to_email }}"
-        run_once: True
+    - name: Send mail with attachments
+      local_action:
+        module: mail    
+        host: outlook.dpw.com
+        port: 25
+        from: ansible@davispolk.com
+        to: honver.lam@davispolk.com
+        subject: Available switchports report for NY
+        body: |
+              Attached are spreadsheets that contain available switchports that can be reused.
+        attach: "{{ files_to_email }}"
+      run_once: True
