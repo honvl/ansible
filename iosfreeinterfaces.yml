@@ -148,3 +148,30 @@
           print(df)
 
           df.to_csv('{{ output_path }}/{{ filename3 }}', index = False)
+
+    - name: Python code for second inner join with the VLAN CSV
+      command: python
+      args:
+        stdin: |
+          import pandas as pd
+            
+          # reading two csv files
+          data1 = pd.read_csv('{{ output_path }}/{{ filename3 }}')
+          data2 = pd.read_csv('{{ output_path }}/{{ filenamevlan }}')
+            
+          # using merge function by setting how='inner'
+          output1 = pd.merge(data1, data2, 
+                            on='interface', 
+                            how='inner')
+
+  #        df = df.drop(columns=['InUcastPkts','InMcastPkts','InBcastPkts'])
+
+  #        column_to_move = df.pop("InBytes")
+  #        df.insert(len(df.columns), "InBytes", column_to_move )
+
+          df.set_index('interface')
+
+          # displaying result
+          print(df)
+
+          df.to_csv('{{ output_path }}/{{ filename3 }}', index = False)          
