@@ -164,6 +164,7 @@
                             on='interface', 
                             how='inner')
 
+          df = output1
   #        df = df.drop(columns=['InUcastPkts','InMcastPkts','InBcastPkts'])
 
   #        column_to_move = df.pop("InBytes")
