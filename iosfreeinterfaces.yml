@@ -7,6 +7,7 @@
     filename: "free_interfaces_{{ date }}.csv"
     filename2: "free_interfaces2_{{ date }}.csv"
     filename3: "free_interfaces3_{{ date }}.csv"
+    filenamevlan: "free_interfacesvlan_{{ date }}.csv"
     temp_path: "/home/ansiblereports/temp.csv"
     full_path: "/home/ansiblereports/free_interfaces_{{ date }}.csv"
 
@@ -25,14 +26,26 @@
     - name: Delete old content2
       ansible.builtin.file:
         state: absent
-        path: "{{ output_path }}/{{ filename2 }}"        
+        path: "{{ output_path }}/{{ filename2 }}"
+
+    - name: Delete old contentvlan
+      ansible.builtin.file:
+        state: absent
+        path: "{{ output_path }}/{{ filenamevlan }}"                 
 
     - name: CSV - Create file and set the header
       lineinfile:
         dest: "{{ output_path }}/{{ filename }}"
-        line: hostname,interface,description,lineprotocol,operstatus,accessvlan,voicevlan
+        line: hostname,interface,description,lineprotocol,operstatus
         create: yes
         state: present
+
+    - name: CSV - Create vlan file and set the header
+      lineinfile:
+        dest: "{{ output_path }}/{{ filenamevlan }}"
+        line: hostname,interface,accessvlan,voicevlan,mode
+        create: yes
+        state: present        
 
     - name: IOS Facts
       cisco.ios.ios_facts:
@@ -44,11 +57,21 @@
       lineinfile:
         insertafter: EOF
         dest: "{{ output_path }}/{{ filename }}"
-        line: "{{ fact['ansible_facts'].ansible_net_hostname }},{{ item.key }},{{ item.value.description | default('') }},{{ item.value.lineprotocol }},{{ item.value.operstatus }},'',''"
+        line: "{{ fact['ansible_facts'].ansible_net_hostname }},{{ item.key }},{{ item.value.description | default('') }},{{ item.value.lineprotocol }},{{ item.value.operstatus }}"
       loop: "{{ fact['ansible_facts']['ansible_net_interfaces'] | dict2items }}"
       when: item.value.lineprotocol == "down"
       loop_control:
         loop_var: item
+
+    - name: CSV - Write vlan information into .csv file
+      lineinfile:
+        insertafter: EOF
+        dest: "{{ output_path }}/{{ filenamevlan }}"
+        line: "{{ fact['ansible_facts'].ansible_net_hostname }},{{ item.key }},{{ item.value.access.vlan }},{{ item.value.voice.vlan  | default('') }},{{ item.value.mode }}"
+      loop: "{{ fact['ansible_network_resources'].l2_interfaces }}"
+      loop_control:
+        loop_var: item
+
 
     - name: show int counters
       cisco.ios.ios_command:
