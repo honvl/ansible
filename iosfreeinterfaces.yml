@@ -148,7 +148,10 @@
           data1 = pd.read_csv('{{ output_path }}/{{ filename }}')
           data2 = pd.read_csv('{{ output_path }}/{{ filename2 }}')
           datavlan = pd.read_csv('{{ output_path }}/{{ filenamevlan }}')
-            
+
+          # remove spaces from column names
+          data2.columns = data2.columns.str.replace(' ', '')
+
           # using merge function by setting how='inner'
           output1 = pd.merge(data2, data1, 
                             on='interface', 
@@ -228,5 +231,5 @@
 
               Best,
               Honver
-        attach: "{{ files_to_email }}"
+        attach: "{{ hostvars['localhost']files_to_email }}"
       run_once: True
