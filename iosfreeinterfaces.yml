@@ -4,11 +4,11 @@
    
   vars:
     output_path: "/home/ansiblereports/"
-    filename: "free_interfaces_{{ date }}.csv"
-    filename2: "free_interfaces2_{{ date }}.csv"
-    filename3: "free_interfaces3_{{ date }}.csv"
-    filename4: "free_interfaces4_{{ date }}.csv"
-    filenamevlan: "free_interfacesvlan_{{ date }}.csv"
+    filename: "{{ switch }}_free_interfaces_{{ date }}.csv"
+    filename2: "{{ switch }}_free_interfaces2_{{ date }}.csv"
+    filename3: "{{ switch }}_free_interfaces3_{{ date }}.csv"
+    filename4: "{{ switch }}_free_interfaces4_{{ date }}.csv"
+    filenamevlan: "{{ switch }}_free_interfacesvlan_{{ date }}.csv"
     temp_path: "/home/ansiblereports/temp.csv"
     full_path: "/home/ansiblereports/free_interfaces_{{ date }}.csv"
 
@@ -17,7 +17,17 @@
     - name: CSV - Generate output filename
       set_fact: 
         date="{{lookup('pipe','date +%Y%m%d')}}"
-      run_once: true
+      run_once: true                
+
+    - name: IOS Facts
+      cisco.ios.ios_facts:
+        gather_network_resources: l2_interfaces
+        gather_subset: all
+      register: fact
+
+    - name: CSV - Generate output filename2
+      set_fact:
+        switch="{{ fact['ansible_facts'].ansible_net_hostname }}"
 
     - name: Delete old content
       ansible.builtin.file:
@@ -32,7 +42,7 @@
     - name: Delete old contentvlan
       ansible.builtin.file:
         state: absent
-        path: "{{ output_path }}/{{ filenamevlan }}"                 
+        path: "{{ output_path }}/{{ filenamevlan }}"         
 
     - name: CSV - Create file and set the header
       lineinfile:
@@ -48,12 +58,6 @@
         create: yes
         state: present        
 
-    - name: IOS Facts
-      cisco.ios.ios_facts:
-        gather_network_resources: l2_interfaces
-        gather_subset: all
-      register: fact
-    
     - name: CSV - Write information into .csv file
       lineinfile:
         insertafter: EOF
@@ -64,7 +68,7 @@
       loop_control:
         loop_var: item
 
-    - name: CSV - Write vlan information into .csv file
+    - name: CSV - Write vlan information into vlan .csv file
       lineinfile:
         insertafter: EOF
         dest: "{{ output_path }}/{{ filenamevlan }}"
@@ -82,41 +86,41 @@
     - name: Write counters into file2
       local_action: copy content="{{ counters_output.stdout[0] }}" dest="{{ output_path }}/{{ filename2 }}"
 
-    - name: Replace old Te interface name with abbreviated interface name
+    - name: Replace old Te interface name with abbreviated interface name in CSV
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename }}"
         regexp: 'TenGigabitEthernet'
         replace: 'Te'    
-    - name: Replace old Te interface name with abbreviated interface name        
+    - name: Replace old Te interface name with abbreviated interface name in vlan CSV       
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filenamevlan }}"
         regexp: 'TenGigabitEthernet'
         replace: 'Te'            
 
-    - name: Replace old Gi interface name with abbreviated interface name
+    - name: Replace old Gi interface name with abbreviated interface name in CSV
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename }}"
         regexp: 'GigabitEthernet'
         replace: 'Gi'    
-    - name: Replace old Gi interface name with abbreviated interface name        
+    - name: Replace old Gi interface name with abbreviated interface name in vlan CSV        
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filenamevlan }}"
         regexp: 'GigabitEthernet'
         replace: 'Gi'          
 
-    - name: Replace more than one whitespace with commas to make csv
+    - name: Replace more than one whitespace with commas to make counters csv with file2
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename2 }}"
         regexp: '[ ]{2,}'
         replace: ',' 
 
-    - name: Delete OutBytes counters
+    - name: Delete OutBytes counters in file2
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename2 }}"
         regexp: '(?s)Port,OutBytes.*'
         replace: '' 
 
-    - name: Rename Port column to interface
+    - name: Rename Port column to interface in file2
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename2 }}"
         regexp: 'Port'
@@ -143,9 +147,6 @@
 
           df = df.drop(columns=['InUcastPkts','InMcastPkts','InBcastPkts'])
 
-          column_to_move = df.pop("InBytes")
-          df.insert(len(df.columns), "InBytes", column_to_move )
-
           df.set_index('interface')
 
           # displaying result
@@ -161,7 +162,10 @@
                             how='inner')   
 
           column_to_move = output2.pop("interface")
-          output2.insert(1, "interface", column_to_move )
+          output2.insert(0, "interface", column_to_move )
+
+          column_to_move2 = output2.pop("InBytes")
+          output2.insert(len(output2.columns), "InBytes", column_to_move2 )
 
           output2.set_index('interface')
 
