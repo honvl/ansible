@@ -128,16 +128,12 @@
           # reading csv files
           data1 = pd.read_csv('{{ output_path }}/{{ filename }}')
           data2 = pd.read_csv('{{ output_path }}/{{ filename2 }}')
-          data3 = pd.read_csv('{{ output_path }}/{{ filenamevlan }}')
+          datavlan = pd.read_csv('{{ output_path }}/{{ filenamevlan }}')
             
           # using merge function by setting how='inner'
           output1 = pd.merge(data2, data1, 
                             on='interface', 
-                            how='inner')
-
-          output2 = pd.merge(output1, data3, 
-                            on='interface', 
-                            how='inner')                            
+                            how='inner')                        
 
           # find interfaces with 0 Bytes
           df = output2[output2['InBytes'] == 0]
@@ -153,3 +149,14 @@
           print(df)
 
           df.to_csv('{{ output_path }}/{{ filename3 }}', index = False)
+
+          data3 = pd.read_csv('{{ output_path }}/{{ filename3 }}')
+ 
+          # using merge function by setting how='inner'
+          output2 = pd.merge(data3, datavlan, 
+                            on='interface', 
+                            how='inner')   
+
+          output2.to_csv('{{ output_path }}/{{ filename3 }}', index = False)
+
+          print(output2)
