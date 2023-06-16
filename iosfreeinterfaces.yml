@@ -118,6 +118,18 @@
         regexp: '[ ]{2,}'
         replace: ',' 
 
+    - name: Replace InOctets with InBytes
+      ansible.builtin.replace:
+        path: "{{ output_path }}/{{ filenamevlan }}"
+        regexp: 'InOctets'
+        replace: 'InBytes'      
+
+    - name: Replace OutOctets with OutBytes
+      ansible.builtin.replace:
+        path: "{{ output_path }}/{{ filenamevlan }}"
+        regexp: 'OutOctets'
+        replace: 'OutBytes'  
+
     - name: Delete OutBytes counters in file2
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename2 }}"
@@ -186,7 +198,7 @@
         module: mail    
         host: outlook.dpw.com
         port: 25
-        from: ansible@davispolk.com
+        from: networking@davispolk.com
         to: honver.lam@davispolk.com
         subject: Available switchports report for NY
         body: |
