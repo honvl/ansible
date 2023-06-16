@@ -87,6 +87,7 @@
         path: "{{ output_path }}/{{ filename }}"
         regexp: 'TenGigabitEthernet'
         replace: 'Te'    
+    - name: Replace old Te interface name with abbreviated interface name        
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filenamevlan }}"
         regexp: 'TenGigabitEthernet'
@@ -97,6 +98,7 @@
         path: "{{ output_path }}/{{ filename }}"
         regexp: 'GigabitEthernet'
         replace: 'Gi'    
+    - name: Replace old Gi interface name with abbreviated interface name        
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filenamevlan }}"
         regexp: 'GigabitEthernet'
@@ -157,6 +159,11 @@
           output2 = pd.merge(data3, datavlan, 
                             on='interface', 
                             how='inner')   
+
+          column_to_move = output2.pop("interface")
+          output2.insert(1, "interface", column_to_move )
+
+          output2.set_index('interface')
 
           output2.to_csv('{{ output_path }}/{{ filename4 }}', index = False)
 
