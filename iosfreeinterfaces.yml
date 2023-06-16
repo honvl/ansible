@@ -186,8 +186,9 @@
           output2.insert(len(output2.columns), "InBytes", column_to_move2 )
 
           # get rid of .0 from vlans
-          output2['accessvlan'] = output2['accessvlan'].astype(str).str.replace('.0', '', regex=False)
-          output2['voicevlan'] = output2['voicevlan'].astype(str).str.replace('.0', '', regex=False)
+#          output2['accessvlan'] = output2['accessvlan'].astype(str).str.replace('.0', '', regex=False)
+#          output2['voicevlan'] = output2['voicevlan'].astype(str).str.replace('.0', '', regex=False)
+          output2.set_option('display.float_format','{:.0f}'.format)
 
           # eliminate index numbers in output csv
           output2.set_index('interface')
