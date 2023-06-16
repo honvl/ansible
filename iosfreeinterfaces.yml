@@ -164,11 +164,9 @@
                             on='interface', 
                             how='inner')
 
-          df = output1[]
-
           # df.set_index('interface')
 
           # displaying result
-          print(df)
+          print(output1)
 
-          df.to_csv('{{ output_path }}/{{ filename3 }}', index = False)          
+          output1.to_csv('{{ output_path }}/{{ filename3 }}', index = False)          
