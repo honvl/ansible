@@ -67,7 +67,7 @@
       lineinfile:
         insertafter: EOF
         dest: "{{ output_path }}/{{ filenamevlan }}"
-        line: "{{ fact['ansible_facts'].ansible_net_hostname }},{{ item.value.name }},{{ item.value.access.vlan }},{{ item.value.voice.vlan  | default('') }},{{ item.value.mode }}"
+        line: "{{ fact['ansible_facts'].ansible_net_hostname }},{{ item.name }},{{ item.access.vlan }},{{ item.voice.vlan  | default('') }},{{ item.mode }}"
       loop: "{{ fact['ansible_facts']['ansible_network_resources'].l2_interfaces }}"
       loop_control:
         loop_var: item
