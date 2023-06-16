@@ -67,8 +67,8 @@
       lineinfile:
         insertafter: EOF
         dest: "{{ output_path }}/{{ filenamevlan }}"
-        line: "{{ fact['ansible_facts'].ansible_net_hostname }},{{ item.key }},{{ item.value.access.vlan }},{{ item.value.voice.vlan  | default('') }},{{ item.value.mode }}"
-      loop: "{{ fact['ansible_network_resources'].l2_interfaces }}"
+        line: "{{ fact['ansible_facts'].ansible_net_hostname }},{{ item.value.name }},{{ item.value.access.vlan }},{{ item.value.voice.vlan  | default('') }},{{ item.value.mode }}"
+      loop: "{{ fact['ansible_facts']['ansible_network_resources'].l2_interfaces }}"
       loop_control:
         loop_var: item
 
@@ -140,24 +140,3 @@
           print(df)
 
           df.to_csv('{{ output_path }}/{{ filename3 }}', index = False)
-
-#      register: joinedcsv         
-#
-#    - name: Copy joined file into csv3
-#      local_action: copy content="{{ joinedcsv.stdout }}" dest="{{ output_path }}/{{ filename3 }}"
-
-#    - name: Read CSV file
-#      set_fact:
-#        csv_content: "{{ lookup('csvfile', full_path) }}"
-
-#    - name: Sort CSV by second column, interface number format
-#      set_fact:
-#        sorted_content: "{{ csv_content | sort_custom }}"
-
-#    - name: Write sorted CSV file to temporary file
-#      copy:
-#        content: "{{ sorted_content | join('\n') }}"
-#        dest: "{{ temp_path }}"      
-
- #   - name: Replace original file with sorted content
- #     command: mv "{{ temp_path }}" "{{ full_path }}"
