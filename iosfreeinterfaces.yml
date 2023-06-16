@@ -227,7 +227,7 @@
               Ports in VLAN 666 are guest ports and have internet access only.
               Ports in VLAN 151 are for Amino IPTV boxes.
               Ports in VLAN "floor number" are standard ports - for example, VLAN 8 on floor 8.
-              Ports in VLAN "floor number" + "5" are videoconferencing ports - for example, VLAN 85 on floor 8.
+              Ports in VLAN "floor number" + "5" are AV ports - for example, VLAN 85 on floor 8.
               Ports without a voice VLAN will not support phones that are plugged in. 
               Ports that have operational status "administratively down" are configured to be off and will not come up even if something is plugged in.
               Ports in modes other than "access" should not be used.
