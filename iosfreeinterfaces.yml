@@ -86,12 +86,20 @@
         path: "{{ output_path }}/{{ filename }}"
         regexp: 'TenGigabitEthernet'
         replace: 'Te'    
+      ansible.builtin.replace:
+        path: "{{ output_path }}/{{ filenamevlan }}"
+        regexp: 'TenGigabitEthernet'
+        replace: 'Te'            
 
     - name: Replace old Gi interface name with abbreviated interface name
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename }}"
         regexp: 'GigabitEthernet'
         replace: 'Gi'    
+      ansible.builtin.replace:
+        path: "{{ output_path }}/{{ filenamevlan }}"
+        regexp: 'GigabitEthernet'
+        replace: 'Gi'          
 
     - name: Replace more than one whitespace with commas to make csv
       ansible.builtin.replace:
