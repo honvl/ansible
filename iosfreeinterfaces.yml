@@ -7,6 +7,7 @@
     filename: "free_interfaces_{{ date }}.csv"
     filename2: "free_interfaces2_{{ date }}.csv"
     filename3: "free_interfaces3_{{ date }}.csv"
+    filename4: "free_interfaces4_{{ date }}.csv"
     filenamevlan: "free_interfacesvlan_{{ date }}.csv"
     temp_path: "/home/ansiblereports/temp.csv"
     full_path: "/home/ansiblereports/free_interfaces_{{ date }}.csv"
@@ -136,7 +137,7 @@
                             how='inner')                        
 
           # find interfaces with 0 Bytes
-          df = output2[output2['InBytes'] == 0]
+          df = output1[output1['InBytes'] == 0]
 
           df = df.drop(columns=['InUcastPkts','InMcastPkts','InBcastPkts'])
 
@@ -157,6 +158,6 @@
                             on='interface', 
                             how='inner')   
 
-          output2.to_csv('{{ output_path }}/{{ filename3 }}', index = False)
+          output2.to_csv('{{ output_path }}/{{ filename4 }}', index = False)
 
           print(output2)
