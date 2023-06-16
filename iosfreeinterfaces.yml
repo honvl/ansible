@@ -231,5 +231,5 @@
 
               Best,
               Honver
-        attach: "{{ hostvars['localhost']files_to_email }}"
+        attach: "{{ hostvars['localhost'].files_to_email }}"
       run_once: True
