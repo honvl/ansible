@@ -116,13 +116,13 @@
 
     - name: Replace InOctets with InBytes
       ansible.builtin.replace:
-        path: "{{ output_path }}/{{ filenamevlan }}"
+        path: "{{ output_path }}/{{ filename2 }}"
         regexp: 'InOctets'
         replace: 'InBytes'      
 
     - name: Replace OutOctets with OutBytes
       ansible.builtin.replace:
-        path: "{{ output_path }}/{{ filenamevlan }}"
+        path: "{{ output_path }}/{{ filename2 }}"
         regexp: 'OutOctets'
         replace: 'OutBytes'  
 
@@ -189,14 +189,16 @@
 
           print(output2)
 
-    - name: Set empty list for file output
+    - name: Register output file to variable
       set_fact:
-        files_to_email: []
-      run_once: true    
+        file_to_email: "{{ output_path }}/{{ filename4 }}"
 
-    - name: Add output file to list
+    - name: Gather output files to list
       set_fact:
-        files_to_email: "{{files_to_email + [ output_path + '/' + filename4 ] }}"
+        files_to_email: "{{ hostvars|json_query('*.file_to_email.stdout') }}"
+      run_once: true
+      delegate_to: localhost
+      delegate_facts: true
 
     - name: Send mail with attachments
       local_action:
@@ -205,9 +207,10 @@
         port: 25
         from: networking@davispolk.com
         to:
-        - hardware_staff@davispolk.com
-        - networking@davispolk.com
-        - isops@davispolk.com
+        - honver.lam@davispolk.com
+#        - hardware_staff@davispolk.com
+#        - networking@davispolk.com
+#        - isops@davispolk.com
         subject: Available switchports report for NY
         body: |
               Hello,
