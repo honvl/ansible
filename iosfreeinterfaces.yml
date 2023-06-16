@@ -43,7 +43,7 @@
     - name: CSV - Create vlan file and set the header
       lineinfile:
         dest: "{{ output_path }}/{{ filenamevlan }}"
-        line: hostname,interface,accessvlan,voicevlan,mode
+        line: interface,accessvlan,voicevlan,mode
         create: yes
         state: present        
 
@@ -67,7 +67,7 @@
       lineinfile:
         insertafter: EOF
         dest: "{{ output_path }}/{{ filenamevlan }}"
-        line: "{{ fact['ansible_facts'].ansible_net_hostname }},{{ item.name }},{{ item.access.vlan | default('') }},{{ item.voice.vlan  | default('') }},{{ item.mode | default('')}}"
+        line: "{{ item.name }},{{ item.access.vlan | default('') }},{{ item.voice.vlan  | default('') }},{{ item.mode | default('')}}"
       loop: "{{ fact['ansible_facts']['ansible_network_resources'].l2_interfaces }}"
       loop_control:
         loop_var: item
@@ -135,12 +135,12 @@
                             on='interface', 
                             how='inner')
 
-          output1 = pd.merge(output1, data3, 
+          output2 = pd.merge(output1, data3, 
                             on='interface', 
                             how='inner')                            
 
           # find interfaces with 0 Bytes
-          df = output1[output1['InBytes'] == 0]
+          df = output2[output2['InBytes'] == 0]
 
           df = df.drop(columns=['InUcastPkts','InMcastPkts','InBcastPkts'])
 
