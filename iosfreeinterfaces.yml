@@ -17,11 +17,7 @@
     - name: CSV - Generate output filename
       set_fact: 
         date="{{lookup('pipe','date +%Y%m%d')}}"
-      run_once: true
-
-    - name: Set empty list for file output
-      set_fact:
-        files_to_email: []                
+      run_once: true            
 
     - name: IOS Facts
       cisco.ios.ios_facts:
@@ -188,6 +184,11 @@
           output2.to_csv('{{ output_path }}/{{ filename4 }}', index = False)
 
           print(output2)
+
+    - name: Set empty list for file output
+      set_fact:
+        files_to_email: []
+      run_once: true    
 
     - name: Add file to list
       set_fact:
