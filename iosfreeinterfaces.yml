@@ -190,6 +190,8 @@
         to: honver.lam@davispolk.com
         subject: Available switchports report for NY
         body: |
+              Hello,
+              
               Attached are spreadsheets for each switch that contain available switchports that can be reused.
               Please reply all to the e-mail if a port is reused and provide the floor and interface number - to prevent conflicts and to allow us to update the port description.
 
@@ -200,5 +202,8 @@
               Ports without a voice VLAN will not support phones that are plugged in. 
               Ports that have operational status "administratively down" are configured to be off and will not come up even if something is plugged in.
               Ports in modes other than "access" should not to be used.
+
+              Best,
+              Honver
         attach: "{{ files_to_email }}"
       run_once: True
