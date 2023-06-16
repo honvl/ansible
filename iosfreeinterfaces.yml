@@ -185,8 +185,14 @@
           column_to_move2 = output2.pop("InBytes")
           output2.insert(len(output2.columns), "InBytes", column_to_move2 )
 
+          # get rid of .0 from vlans
+          output2 = output2.astype({'accessvlan':'int'})
+          output2 = output2.astype({'voicevlan':'int'})
+
           # eliminate index numbers in output csv
           output2.set_index('interface')
+
+
 
           output2.to_csv('{{ output_path }}/{{ filename4 }}', index = False)
 
