@@ -200,7 +200,10 @@
         host: outlook.dpw.com
         port: 25
         from: networking@davispolk.com
-        to: honver.lam@davispolk.com
+        to:
+        - hardware_staff@davispolk.com
+        - networking@davispolk.com
+        - isops@davispolk.com
         subject: Available switchports report for NY
         body: |
               Hello,
