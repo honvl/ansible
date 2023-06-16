@@ -164,7 +164,9 @@
                             on='interface', 
                             how='inner')
 
-          df = output1
+          # find interfaces with 0 Bytes
+          df = output1[output1['InBytes'] == 0]
+
   #        df = df.drop(columns=['InUcastPkts','InMcastPkts','InBcastPkts'])
 
   #        column_to_move = df.pop("InBytes")
