@@ -119,20 +119,25 @@
         regexp: 'Port'
         replace: 'interface'         
 
-    - name: Python code for inner join of the two CSVs
+    - name: Python code for inner join of the CSVs
       command: python
       args:
         stdin: |
           import pandas as pd
             
-          # reading two csv files
+          # reading csv files
           data1 = pd.read_csv('{{ output_path }}/{{ filename }}')
           data2 = pd.read_csv('{{ output_path }}/{{ filename2 }}')
+          data3 = pd.read_csv('{{ output_path }}/{{ filenamevlan }}')
             
           # using merge function by setting how='inner'
           output1 = pd.merge(data2, data1, 
                             on='interface', 
                             how='inner')
+
+          output1 = pd.merge(output1, data3, 
+                            on='interface', 
+                            how='inner')                            
 
           # find interfaces with 0 Bytes
           df = output1[output1['InBytes'] == 0]
@@ -148,25 +153,3 @@
           print(df)
 
           df.to_csv('{{ output_path }}/{{ filename3 }}', index = False)
-
-    - name: Python code for second inner join with the VLAN CSV
-      command: python
-      args:
-        stdin: |
-          import pandas as pd
-            
-          # reading two csv files
-          data1 = pd.read_csv('{{ output_path }}/{{ filename3 }}')
-          data2 = pd.read_csv('{{ output_path }}/{{ filenamevlan }}')
-            
-          # using merge function by setting how='inner'
-          output1 = pd.merge(data1, data2, 
-                            on='interface', 
-                            how='inner')
-
-          # df.set_index('interface')
-
-          # displaying result
-          print(output1)
-
-          output1.to_csv('{{ output_path }}/{{ filename3 }}', index = False)          
