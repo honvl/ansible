@@ -66,7 +66,7 @@
       lineinfile:
         insertafter: EOF
         dest: "{{ output_path }}/{{ filename }}"
-        line: "{{ fact['ansible_facts'].ansible_net_hostname }},{{ item.key }},{{ item.value.description | default('') }},{{ item.value.lineprotocol }},{{ item.value.operstatus }}"
+        line: "{{ fact['ansible_facts'].ansible_net_hostname }},{{ item.key }},{{ item.value.description | replace(',','') | default('') }},{{ item.value.lineprotocol }},{{ item.value.operstatus }}"
       loop: "{{ fact['ansible_facts']['ansible_net_interfaces'] | dict2items }}"
       when: item.value.lineprotocol == "down"
       loop_control:
