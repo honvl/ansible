@@ -212,12 +212,11 @@
         port: 25
         from: networking@davispolk.com
         to:
-        - honver.lam@davispolk.com
-#        - hardware_staff@davispolk.com
-#        - networking@davispolk.com
-#        - robert.connolly@davispolk.com
-#        - john.wong@davispolk.com
-#        - av@davispolk.com
+        - hardware_staff@davispolk.com
+        - networking@davispolk.com
+        - robert.connolly@davispolk.com
+        - john.wong@davispolk.com
+        - av@davispolk.com
         subject: Available switchports report for NY
         body: |
               Hello,
