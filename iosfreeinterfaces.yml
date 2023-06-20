@@ -200,7 +200,7 @@
 
     - name: Gather output files to list
       set_fact:
-        files_to_email: "{{ hostvars|json_query('*.file_to_email') }}"
+        files_to_email: "{{ hostvars|json_query('*.file_to_email') | sort }}"
       run_once: true
       delegate_to: localhost
       delegate_facts: true
@@ -212,11 +212,12 @@
         port: 25
         from: networking@davispolk.com
         to:
-        - hardware_staff@davispolk.com
-        - networking@davispolk.com
-        - robert.connolly@davispolk.com
-        - john.wong@davispolk.com
-        - av@davispolk.com
+        - honver.lam@davispolk.com
+#        - hardware_staff@davispolk.com
+#        - networking@davispolk.com
+#        - robert.connolly@davispolk.com
+#        - john.wong@davispolk.com
+#        - av@davispolk.com
         subject: Available switchports report for NY
         body: |
               Hello,
