@@ -34,7 +34,7 @@
         - show ip eigrp neighbors
         - show ip mroute summary
 
-        - show log
+        - show logg
 
       ignore_errors: true
       register: config
