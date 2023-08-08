@@ -36,7 +36,6 @@
 
         - show logg
 
-      ignore_errors: true
       register: config
 
     - name: show 2
