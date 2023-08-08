@@ -27,7 +27,7 @@
         - show ip arp
 
         - show ip int brief
-        - show hsrp brief
+
         - show ip route summary
         - show ip route | i 00:0
 
@@ -73,7 +73,14 @@
       ignore_errors: true
       register: config6
 
-        
+    - name: show 7
+      ios_command:
+        commands:
+        - show hsrp brief   
+      ignore_errors: true
+      register: config6
+
+     
         
     - name: save output to local directory
       copy:
@@ -113,4 +120,11 @@
         path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
         insertafter: EOF
         block: "{{ config6.stdout | replace('\\n', '\n') }}"
-      when: config5.stdout is defined
+      when: config6.stdout is defined
+
+    - name: append new line EOF 7
+      blockinfile:
+        path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
+        insertafter: EOF
+        block: "{{ config7.stdout | replace('\\n', '\n') }}"
+      when: config7.stdout is defined
