@@ -65,3 +65,24 @@
         content: "{{ config.stdout | replace('\\n', '\n') }}"
         dest: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
 
+    - name: append new line EOF 2
+      blockinfile:
+        path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
+        insertafter: EOF
+        block: "{{ config2.stdout | replace('\\n', '\n') }}"
+      when: config2 | length > 0
+
+    - name: append new line EOF 3
+      blockinfile:
+        path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
+        insertafter: EOF
+        block: "{{ config3.stdout | replace('\\n', '\n') }}"
+      when: config3 | length > 0
+
+    - name: append new line EOF 4
+      blockinfile:
+        path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
+        insertafter: EOF
+        block: "{{ config4.stdout | replace('\\n', '\n') }}"
+      when: config4 | length > 0
+
