@@ -98,6 +98,7 @@
         path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
         insertafter: EOF
         block: "{{ config2.stdout | replace('\\n', '\n') }}"
+        marker: "# {mark} 2"
       when: config2.stdout is defined
 
     - name: append new line EOF 3
@@ -105,6 +106,7 @@
         path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
         insertafter: EOF
         block: "{{ config3.stdout | replace('\\n', '\n') }}"
+        marker: "# {mark} 3"
       when: config3.stdout is defined
 
     - name: append new line EOF 4
@@ -112,6 +114,7 @@
         path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
         insertafter: EOF
         block: "{{ config4.stdout | replace('\\n', '\n') }}"
+        marker: "# {mark} 4"
       when: config4.stdout is defined
 
     - name: append new line EOF 5
@@ -119,6 +122,7 @@
         path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
         insertafter: EOF
         block: "{{ config5.stdout | replace('\\n', '\n') }}"
+        marker: "# {mark} 5"
       when: config5.stdout is defined
 
     - name: append new line EOF 6
@@ -126,6 +130,7 @@
         path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
         insertafter: EOF
         block: "{{ config6.stdout | replace('\\n', '\n') }}"
+        marker: "# {mark} 6"
       when: config6.stdout is defined
 
     - name: append new line EOF 7
@@ -133,6 +138,7 @@
         path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
         insertafter: EOF
         block: "{{ config7.stdout | replace('\\n', '\n') }}"
+        marker: "# {mark} 7"
       when: config7.stdout is defined
 
     - name: append new line EOF 8
@@ -140,4 +146,5 @@
         path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
         insertafter: EOF
         block: "{{ config8.stdout | replace('\\n', '\n') }}"
+        marker: "# {mark} 8"
       when: config8.stdout is defined
