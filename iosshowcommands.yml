@@ -30,7 +30,7 @@
         - show hsrp brief
         - show ip route summary
         - show ip route | i 00:0
-        - show ip cef
+
         - show ip eigrp neighbors
         - show ip mroute summary
         - show ip pim neighbors
@@ -45,6 +45,13 @@
         - show lldp neighbors
       ignore_errors: true
       register: config2
+
+    - name: show 3
+      ios_command:
+        commands:
+        - show ip cef
+      ignore_errors: true
+      register: config3
 
     - name: save output to local directory
       copy:
