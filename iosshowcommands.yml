@@ -33,9 +33,9 @@
 
         - show ip eigrp neighbors
         - show ip mroute summary
-        - show ip pim neighbors
+
         - show log
-        - show fex
+
       ignore_errors: true
       register: config
 
@@ -53,12 +53,15 @@
       ignore_errors: true
       register: config3
 
+    - name: show 4
+      ios_command:
+        commands:
+        - show fex
+      ignore_errors: true
+      register: config4
+
     - name: save output to local directory
       copy:
         content: "{{ config.stdout | replace('\\n', '\n') }}"
         dest: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
 
-    - name: save output to local directory 2
-      copy:
-        content: "{{ config2.stdout | replace('\\n', '\n') }}"
-        dest: "/home/ansiblereports/show-output/{{ inventory_hostname }}2.ios"
