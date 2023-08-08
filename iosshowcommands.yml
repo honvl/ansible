@@ -12,7 +12,7 @@
         - show run
         - show clock
         - show cdp neighbors
-        - show lldp neighbors
+        
         - show inter counters error
         - show inter counter
         - show int status
@@ -39,7 +39,19 @@
       ignore_errors: true
       register: config
 
+    - name: show 2
+      ios_command:
+        commands:
+        - show lldp neighbors
+      ignore_errors: true
+      register: config2
+
     - name: save output to local directory
       copy:
         content: "{{ config.stdout | replace('\\n', '\n') }}"
         dest: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
+
+    - name: save output to local directory 2
+      copy:
+        content: "{{ config2.stdout | replace('\\n', '\n') }}"
+        dest: "/home/ansiblereports/show-output/{{ inventory_hostname }}2.ios"
