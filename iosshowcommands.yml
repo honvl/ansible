@@ -4,40 +4,41 @@
   connection: network_cli
    
    tasks:
-        - name: show run
-         ios_command:
-           commands:
-           - show version
-           - show inventory
-           - show run
-           - show clock
-           - show cdp neighbors
-           - show lldp neighbors
-           - show inter counters error
-           - show inter counter
-           - show int status
-           - show int description
-           - show int trunk
-           - show spanning-tree summary
-           - show spanning-tree root
-           - show vlan brief
-           - show mac address-table aging-time
-           - show mac address-table dynamic
-           - show port-chan summary
-           - show ip arp
-           - show ip int brief vrf all
-           - show ip int brief
-           - show hsrp brief
-           - show ip route summary
-           - show ip route | i 00:0
-           - show ip cef
-           - show ip eigrp neighbors
-           - show ip mroute summary
-           - show ip pim neighbors
-           - Show log
-           - show fex
-         register: config
+    - name: show run
+      ios_command:
+        commands:
+        - show version
+        - show inventory
+        - show run
+        - show clock
+        - show cdp neighbors
+        - show lldp neighbors
+        - show inter counters error
+        - show inter counter
+        - show int status
+        - show int description
+        - show int trunk
+        - show spanning-tree summary
+        - show spanning-tree root
+        - show vlan brief
+        - show mac address-table aging-time
+        - show mac address-table dynamic
+        - show port-chan summary
+        - show ip arp
+        - show ip int brief vrf all
+        - show ip int brief
+        - show hsrp brief
+        - show ip route summary
+        - show ip route | i 00:0
+        - show ip cef
+        - show ip eigrp neighbors
+        - show ip mroute summary
+        - show ip pim neighbors
+        - show log
+        - show fex
+      register: config
 
-       - name: save output to local directory
-         copy:
-           content: "{{ config.stdout | replace('\\n', '\n') }}"           dest: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
+    - name: save output to local directory
+      copy:
+        content: "{{ config.stdout | replace('\\n', '\n') }}"
+        dest: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
