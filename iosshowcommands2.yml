@@ -11,7 +11,7 @@
         - show inventory
         - show run
         - show clock
-        - show cdp neighbors
+
         
         - show inter counters error
         - show inter counter
@@ -78,9 +78,15 @@
         commands:
         - show hsrp brief   
       ignore_errors: true
-      register: config6
+      register: config7
 
-     
+    - name: show 8
+      ios_command:
+        commands:
+        - show cdp neighbors   
+      ignore_errors: true
+      register: config8
+   
         
     - name: save output to local directory
       copy:
@@ -128,3 +134,10 @@
         insertafter: EOF
         block: "{{ config7.stdout | replace('\\n', '\n') }}"
       when: config7.stdout is defined
+
+    - name: append new line EOF 8
+      blockinfile:
+        path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
+        insertafter: EOF
+        block: "{{ config8.stdout | replace('\\n', '\n') }}"
+      when: config8.stdout is defined
