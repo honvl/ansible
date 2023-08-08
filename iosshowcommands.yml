@@ -36,6 +36,7 @@
         - show ip pim neighbors
         - show log
         - show fex
+      ignore_errors: true
       register: config
 
     - name: save output to local directory
