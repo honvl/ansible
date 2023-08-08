@@ -23,7 +23,7 @@
         - show vlan brief
         - show mac address-table aging-time
         - show mac address-table dynamic
-        - show port-chan summary
+
         - show ip arp
         - show ip int brief vrf all
         - show ip int brief
@@ -59,6 +59,15 @@
       ignore_errors: true
       register: config4
 
+    - name: show 5
+      ios_command:
+        commands:
+        - show port-chan summary
+      ignore_errors: true
+      register: config5
+
+
+        
     - name: save output to local directory
       copy:
         content: "{{ config.stdout | replace('\\n', '\n') }}"
@@ -85,3 +94,9 @@
         block: "{{ config4.stdout | replace('\\n', '\n') }}"
       when: config4.stdout is defined
 
+    - name: append new line EOF 5
+      blockinfile:
+        path: "/home/ansiblereports/show-output/{{ inventory_hostname }}.ios"
+        insertafter: EOF
+        block: "{{ config5.stdout | replace('\\n', '\n') }}"
+      when: config5.stdout is defined
