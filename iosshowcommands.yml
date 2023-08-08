@@ -3,7 +3,7 @@
   gather_facts: false
   connection: network_cli
    
-   tasks:
+  tasks:
     - name: show run
       ios_command:
         commands:
