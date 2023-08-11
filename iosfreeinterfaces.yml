@@ -200,7 +200,7 @@
 
     - name: Gather output files to list
       set_fact:
-        files_to_email: "{{ hostvars|json_query('*.file_to_email') }}"
+        files_to_email: "{{ hostvars|json_query('*.file_to_email') | sort }}"
       run_once: true
       delegate_to: localhost
       delegate_facts: true
