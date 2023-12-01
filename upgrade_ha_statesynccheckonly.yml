@@ -60,14 +60,14 @@
     pause_mid_upgrade: False
 
   tasks:
-    - name: State sync check not empty
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
-        cmd: 'show high-availability state'
-      register: primary_state_sync
-      retries: 10
-      delay: 30
-      until: primary_state_sync.stdout is defined
+#    - name: State sync check not empty
+#      paloaltonetworks.panos.panos_op:
+#        provider: '{{ primary }}'
+#        cmd: 'show high-availability state'
+#      register: primary_state_sync
+#      retries: 10
+#      delay: 30
+#      until: primary_state_sync.stdout is defined
 
 
     - name: State sync check (primary)
@@ -77,5 +77,9 @@
       register: primary_state_sync
       retries: 10
       delay: 30
-      until: ( primary_state_sync.stdout | from_json).response.result.group["local-info"].state == 'passive' and
-             ( primary_state_sync.stdout | from_json).response.result.group["local-info"]["state-sync"] == 'Complete'
+      until: >
+        primary_state_sync.stdout is defined and
+        (
+          (primary_state_sync.stdout | from_json).response.result.group["local-info"].state == 'passive' and
+          (primary_state_sync.stdout | from_json).response.result.group["local-info"]["state-sync"] == 'Complete'
+        )
