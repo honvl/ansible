@@ -60,41 +60,6 @@
     pause_mid_upgrade: False
 
   tasks:
-    - name: State sync check (primary)
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
-        cmd: 'show high-availability state'
-      register: primary_state_sync
-      retries: 10
-      delay: 30
-      until: ( primary_state_sync.stdout | from_json).response.result.group["local-info"].state == 'passive' and
-             ( primary_state_sync.stdout | from_json).response.result.group["local-info"]["state-sync"] == 'Complete'
-
-    - name: Pause for verification
-      pause:
-        prompt: 'Primary upgrade complete.  Pausing for verification.'
-      when: pause_mid_upgrade
-
-    - name: Suspend secondary device
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ secondary }}'
-        cmd: 'request high-availability state suspend'
-
-    - name: Check that primary is now active
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
-        cmd: 'show high-availability state'
-      register: primary_active
-      retries: 10
-      delay: 30
-      until: ( primary_active.stdout | from_json).response.result.group["local-info"].state == 'active' and
-             ( primary_active.stdout | from_json).response.result.group["peer-info"].state == 'suspended' and
-             ( primary_active.stdout | from_json).response.result.group["peer-info"]["state-reason"] == 'User requested'
-
-    - name: Pause for suspend
-      pause:
-        seconds: 30
-
     - name: Install target PAN-OS version and restart (secondary)
       paloaltonetworks.panos.panos_software:
         provider: '{{ secondary }}'
