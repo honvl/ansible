@@ -124,6 +124,15 @@
       retries: 30
       delay: 60
 
+    - name: State sync check (primary) not empty
+      paloaltonetworks.panos.panos_op:
+        provider: '{{ primary }}'
+        cmd: 'show high-availability state'
+      register: primary_state_sync
+      retries: 10
+      delay: 30
+      until: primary_state_sync.stdout is defined
+
     - name: State sync check (primary)
       paloaltonetworks.panos.panos_op:
         provider: '{{ primary }}'
@@ -182,6 +191,15 @@
       until: result is not failed and (result.stdout | from_json).response.result == 'yes'
       retries: 30
       delay: 60
+
+    - name: State sync check (secondary) not empty
+      paloaltonetworks.panos.panos_op:
+        provider: '{{ secondary }}'
+        cmd: 'show high-availability state'
+      register: secondary_state_sync
+      retries: 10
+      delay: 30
+      until: secondary_state_sync.stdout is defined
 
     - name: State sync check (secondary)
       paloaltonetworks.panos.panos_op:
