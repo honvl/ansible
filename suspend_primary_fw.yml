@@ -76,6 +76,15 @@
         provider: '{{ primary }}'
         cmd: 'request high-availability state suspend'
 
+    - name: Pause for suspend
+      pause:
+        seconds: 10
+
+    - name: Unsuspend primary device
+      paloaltonetworks.panos.panos_op:
+        provider: '{{ primary }}'
+        cmd: 'request high-availability state functional'
+
     - name: Check that secondary is now active
       paloaltonetworks.panos.panos_op:
         provider: '{{ secondary }}'
@@ -83,6 +92,5 @@
       register: secondary_active
       retries: 10
       delay: 30
-      until: ( secondary_active.stdout | from_json).response.result.group["local-info"].state == 'active' and
-             ( secondary_active.stdout | from_json).response.result.group["peer-info"].state == 'suspended' and
-             ( secondary_active.stdout | from_json).response.result.group["peer-info"]["state-reason"] == 'User requested' # yamllint disable-line
+      until: ( secondary_active.stdout | from_json).response.result.group["local-info"].state == 'active'
+
