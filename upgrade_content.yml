@@ -83,5 +83,5 @@
         cmd: 'show jobs id {{ (install.stdout | from_json).response.result.job }}'
       register: install_job
       until: install_job is not failed and (install_job.stdout | from_json).response.result.job.status == 'FIN'
-      retries: 10
+      retries: 15
       delay: 60
