@@ -4,3 +4,4 @@ collections:
     version: 2.9.0
 
   - name: cisco.ios
+    version: 4.6.0
