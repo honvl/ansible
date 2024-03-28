@@ -3,10 +3,9 @@
   collections:
     - paloaltonetworks.panos
   tasks:
-  - name: Palo Alto info
+  - name: Palo Alto restart
     paloaltonetworks.panos.panos_restart:
       provider:
         username: '{{ username }}'
         password: '{{ password }}'
         ip_address: '{{ inventory_hostname }}'
-      cmd: 'show ntp'
