@@ -1,0 +1,12 @@
+- hosts: all
+  connection: local
+  collections:
+    - paloaltonetworks.panos
+  tasks:
+  - name: Palo Alto info
+    paloaltonetworks.panos.panos_restart:
+      provider:
+        username: '{{ username }}'
+        password: '{{ password }}'
+        ip_address: '{{ inventory_hostname }}'
+      cmd: 'show ntp'
