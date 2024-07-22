@@ -16,6 +16,13 @@
     - name: Python version
       ansible.builtin.command: python --version
 
+    - name: Python commands
+      ansible.builtin.command: python
+      args:
+        stdin: |
+          import sys
+          print (sys.path)
+
     - name: Python code for inner join of the CSVs
       ansible.builtin.script: iosfreeinterfaces.py
       args:
