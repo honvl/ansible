@@ -139,7 +139,9 @@
         replace: 'interface'         
 
     - name: Python code for inner join of the CSVs
-      script: iosfreeinterfaces.py
+      ansible.builtin.script: iosfreeinterfaces.py
+      args:
+        executable: python3
       delegate_to: localhost
 
     - name: Register output file to variable
