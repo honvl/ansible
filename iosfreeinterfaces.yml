@@ -139,7 +139,7 @@
         replace: 'interface'         
 
     - name: Python code for inner join of the CSVs
-      command: python3
+      command: /var/lib/awx/venv/ansible/bin/python
       args:
         stdin: |
           import pandas as pd
