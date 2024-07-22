@@ -1,0 +1,23 @@
+- name: PythonTest
+  hosts: all
+  gather_facts: false
+   
+  vars:
+    output_path: "/home/ansiblereports/"
+    filename: "{{ switch }}_free_interfaces_{{ date }}.csv"
+    filename2: "{{ switch }}_free_interfaces2_{{ date }}.csv"
+    filename3: "{{ switch }}_free_interfaces3_{{ date }}.csv"
+    filename4: "{{ switch }}_free_interfaces4_{{ date }}.csv"
+    filenamevlan: "{{ switch }}_free_interfacesvlan_{{ date }}.csv"
+    temp_path: "/home/ansiblereports/temp.csv"
+    full_path: "/home/ansiblereports/free_interfaces_{{ date }}.csv"
+
+  tasks:     
+    - name: Python version
+      ansible.builtin.command: python --version
+
+    - name: Python code for inner join of the CSVs
+      ansible.builtin.script: iosfreeinterfaces.py
+      args:
+        executable: python3
+      delegate_to: localhost

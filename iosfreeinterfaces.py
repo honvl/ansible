@@ -1,4 +1,7 @@
 import pandas as pd
+import sys
+
+print (sys.path)
             
 # reading csv files
 data1 = pd.read_csv('{{ output_path }}/{{ filename }}')
