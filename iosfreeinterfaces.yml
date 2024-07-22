@@ -193,6 +193,7 @@
           output2.to_csv('{{ output_path }}/{{ filename4 }}', index = False, float_format='%.0f')
 
           print(output2)
+      delegate_to: localhost
 
     - name: Register output file to variable
       set_fact:
