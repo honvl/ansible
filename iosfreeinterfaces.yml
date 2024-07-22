@@ -139,7 +139,7 @@
         replace: 'interface'         
 
     - name: Python code for inner join of the CSVs
-      command: python
+      command: python3
       args:
         stdin: |
           import pandas as pd
