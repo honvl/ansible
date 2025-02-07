@@ -116,7 +116,7 @@
     - name: Replace old Fi interface name with abbreviated interface name in vlan CSV       
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filenamevlan }}"
-        regexp: 'FiveGigabitEthernet'
+        regexp: 'FiveGi'
         replace: 'Fi'       
 
     - name: Replace more than one whitespace with commas to make counters csv with file2
@@ -215,7 +215,6 @@
         - hardware_staff@davispolk.com
         - networking@davispolk.com
         - robert.connolly@davispolk.com
-        - john.wong@davispolk.com
         - av@davispolk.com
         subject: Available switchports report for NY
         body: |
