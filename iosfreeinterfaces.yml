@@ -111,7 +111,7 @@
     - name: Replace old Fi interface name with abbreviated interface name in CSV
       ansible.builtin.replace:
         path: "{{ output_path }}/{{ filename }}"
-        regexp: 'FiveGigabitEthernet'
+        regexp: 'FiveGi'
         replace: 'Fi'    
     - name: Replace old Fi interface name with abbreviated interface name in vlan CSV       
       ansible.builtin.replace:
