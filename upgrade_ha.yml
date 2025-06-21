@@ -79,6 +79,7 @@
         download: true
         sync_to_peer: true
         install: false
+        perform_software_check: false
 
     - name: Suspend primary device
       paloaltonetworks.panos.panos_op:
@@ -106,6 +107,7 @@
         version: '{{ version }}'
         download: false
         restart: true
+        perform_software_check: false
       register: installresult
       until: installresult is not failed
       delay: 10
@@ -178,6 +180,7 @@
         version: '{{ version }}'
         download: false
         restart: true
+        perform_software_check: false
       register: installresult
       until: installresult is not failed
       delay: 10
