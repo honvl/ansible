@@ -36,9 +36,9 @@
 #
 # HA pairs with preemption enabled are not supported by these playbooks.
 
-- import_playbook: upgrade_content.yml
-  vars:
-    sync_to_peer: true
+#- import_playbook: upgrade_content.yml
+#  vars:
+#    sync_to_peer: true
 
 - import_playbook: download_panos_version.yml
   vars:
