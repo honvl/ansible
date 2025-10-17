@@ -1,7 +1,8 @@
 ---
 collections:
 # With just the collection name
-  - paloaltonetworks.panos
+  - name: paloaltonetworks.panos
+    version: 2.9.0
 
   - name: cisco.ios
     version: 4.6.0
