@@ -33,8 +33,8 @@
         username: "{{ username | default(omit) }}"
         password: "{{ password | default(omit) }}"
       loop:
-        - "{{ primary_ip_address }}"
-        - "{{ secondary_ip_address }}"
+        - "{{ inventory_hostname }}"
+#        - "{{ secondary_ip_address }}"
       register: ha_status
 
     - name: Set active/passive devices dynamically
