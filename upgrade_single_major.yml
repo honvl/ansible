@@ -33,8 +33,6 @@
 #  $ ansible-playbook -i inventory upgrade_single_major.yml --extra-vars "target=firewall base_version=9.0.0 target_version=9.0.5"
 #
 
-- import_playbook: upgrade_content.yml
-
 - import_playbook: download_panos_version.yml
   vars:
     version: '{{ base_version }}'
