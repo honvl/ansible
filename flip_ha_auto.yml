@@ -43,7 +43,7 @@
         active_fw: "{{ (ha_status.results | selectattr('response.active', 'equalto', true) | list | first).item }}"
         passive_fw: "{{ (ha_status.results | selectattr('response.active', 'equalto', false) | list | first).item }}"
 #      when: ha_status.results | length > 0
-      when: active_ha.response.active
+      when: response.active
       ignore_errors: true
 
     - name: Fail if no active firewall was detected
