@@ -36,17 +36,6 @@
   connection: local
 
   vars:
-    primary:
-      ip_address: '{{ primary_ip_address }}'
-      username: '{{ username | default(omit) }}'
-      password: '{{ password | default(omit) }}'
-      api_key: '{{ api_key | default(omit) }}'
-
-    secondary:
-      ip_address: '{{ secondary_ip_address }}'
-      username: '{{ username | default(omit) }}'
-      password: '{{ password | default(omit) }}'
-      api_key: '{{ api_key | default(omit) }}'
 
     # backup_config - Create a backup of the currently running config before upgrading on both devices.
     backup_config: true
@@ -60,6 +49,38 @@
     pause_mid_upgrade: False
 
   tasks:
+    - name: Determine which firewall is active in HA
+      paloaltonetworks.panos.panos_active_in_ha:
+        ip_address: "{{ item }}"
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
+      loop:
+        - "{{ primary_ip_address }}"
+        - "{{ secondary_ip_address }}"
+      register: ha_status
+
+    - name: Set active/passive devices dynamically
+      set_fact:
+        active_fw: "{{ (ha_status.results | selectattr('response.active','equalto',true) | list | first).item }}"
+        passive_fw: "{{ (ha_status.results | selectattr('response.active','equalto',false) | list | first).item }}"
+      when: ha_status.results | length > 0
+
+    - name: Fail if no active firewall was detected
+      fail:
+        msg: "Could not detect active/passive nodes. Check credentials or HA connectivity."
+      when: active_fw is not defined
+
+    - name: Map primary/secondary provider dictionaries (primary = currently ACTIVE)
+      set_fact:
+        primary:
+          ip_address: "{{ active_fw }}"
+          username: "{{ username | default(omit) }}"
+          password: "{{ password | default(omit) }}"
+        secondary:
+          ip_address: "{{ passive_fw }}"
+          username: "{{ username | default(omit) }}"
+          password: "{{ password | default(omit) }}"
+
     - name: Backup device config (primary)
       paloaltonetworks.panos.panos_op:
         provider: '{{ primary }}'
@@ -124,15 +145,6 @@
       retries: 30
       delay: 60
 
-#    - name: State sync check (primary) not empty
-#      paloaltonetworks.panos.panos_op:
-#        provider: '{{ primary }}'
-#        cmd: 'show high-availability state'
-#      register: primary_state_sync
-#      retries: 10
-#      delay: 30
-#      until: primary_state_sync.stdout is defined
-
     - name: State sync check (primary)
       paloaltonetworks.panos.panos_op:
         provider: '{{ primary }}'
@@ -195,15 +207,6 @@
       until: result is not failed and (result.stdout | from_json).response.result == 'yes'
       retries: 30
       delay: 60
-
-#    - name: State sync check (secondary) not empty
-#      paloaltonetworks.panos.panos_op:
-#        provider: '{{ secondary }}'
-#        cmd: 'show high-availability state'
-#      register: secondary_state_sync
-#      retries: 10
-#      delay: 30
-#      until: secondary_state_sync.stdout is defined
 
     - name: State sync check (secondary)
       paloaltonetworks.panos.panos_op:
