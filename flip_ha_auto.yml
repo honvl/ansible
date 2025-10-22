@@ -37,6 +37,10 @@
         - "{{ secondary_ip_address }}"
       register: ha_status
 
+    - name: Debug HA detection results
+      debug:
+        var: ha_status
+
     - name: Set active/passive devices dynamically
       set_fact:
         active_fw: >-
