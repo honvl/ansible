@@ -37,16 +37,16 @@
         - "{{ secondary_ip_address }}"
       register: ha_status
 
-    - name: Debug HA detection results
-      debug:
-        var: ha_status
-
     - name: Set active/passive devices dynamically
       set_fact:
-        active_fw: >-
-          {{ (ha_status.results | selectattr('active', 'defined') | selectattr('active', 'eq', True) | first).item }}
-        passive_fw: >-
-          {{ (ha_status.results | selectattr('active', 'defined') | selectattr('active', 'eq', False) | first).item }}
+        active_fw: "{{ (ha_status.results | selectattr('response.active', 'equalto', true) | list | first).item }}"
+        passive_fw: "{{ (ha_status.results | selectattr('response.active', 'equalto', false) | list | first).item }}"
+      when: ha_status.results | length > 0
+
+    - name: Fail if no active firewall was detected
+      fail:
+        msg: "Could not detect active/passive nodes. Check credentials or HA connectivity."
+      when: active_fw is not defined
 
     - name: Show which firewall is active/passive
       debug:
