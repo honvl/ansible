@@ -1,6 +1,7 @@
 - name: Palo Alto SCP export
   hosts: all
-  gather_facts: no
+  connection: httpapi
+  gather_facts: False
   tasks:
     - name: Palo Alto SCP export
  #     raw: scp export log traffic max-log-count 1048576 start-time equal 2022/05/02@12:00:00 end-time equal 2022/05/02@12:30:00 to telecom@10.204.57.53:panscpexportauto

@@ -33,7 +33,8 @@
 # HA pairs with preemption enabled are not supported by this playbook.
 
 - hosts: '{{ target | default("ha_pair") }}'
-  connection: local
+  connection: httpapi
+  gather_facts: False
 
   vars:
     primary:

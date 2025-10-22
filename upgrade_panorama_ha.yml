@@ -32,7 +32,8 @@
 #
 # HA pairs with preemption enabled are not supported by this playbook.
 - hosts: '{{ target | default("panorama_ha_pair") }}'
-  connection: local
+  connection: httpapi
+  gather_facts: False
 
   vars:
     primary:

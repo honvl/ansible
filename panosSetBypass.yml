@@ -1,5 +1,6 @@
 - hosts: '{{ target | default("firewall") }}'
-  connection: local
+  connection: httpapi
+  gather_facts: False
   collections:
     - paloaltonetworks.panos
   tasks:

@@ -34,7 +34,8 @@
 #  $ ansible-playbook -i inventory upgrade_single.yml --extra-vars "target=firewall version=9.0.3-h3"
 
 - hosts: '{{ target | default("firewall") }}'
-  connection: local
+  connection: httpapi
+  gather_facts: False
 
   vars:
     device:
