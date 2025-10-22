@@ -21,8 +21,7 @@
 # - HA preemption must be disabled
 # - Assumes both HA peers are reachable
 
-#- hosts: "{{ target | default('ha_pair') }}"
-- hosts: localhost
+- hosts: "{{ target | default('ha_pair') }}"
   connection: local
   gather_facts: false
 
