@@ -33,7 +33,7 @@
         username: "{{ username | default(omit) }}"
         password: "{{ password | default(omit) }}"
       loop:
-        - "{{ inventory_hostname }}"
+        - "{{ primary_ip_address }}"
 #        - "{{ secondary_ip_address }}"
       register: ha_status
 
