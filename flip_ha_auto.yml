@@ -45,68 +45,7 @@
       when: ha_status.results | length > 0
       ignore_errors: true
 
-    - name: Fail if no active firewall was detected
-      fail:
-        msg: "Could not detect active/passive nodes. Check credentials or HA connectivity."
-      when: active_fw is not defined
+    - name: Run tasks dedicated to active node
+      ansible.builtin.include_tasks: flip_ha_auto_active.yml
+      when: ha_status.response.active
 
-    - name: Show which firewall is active/passive
-      debug:
-        msg:
-          - "Active Firewall IP: {{ active_fw }}"
-          - "Passive Firewall IP: {{ passive_fw }}"
-      
-
-    - name: Check HA sync on passive
-      paloaltonetworks.panos.panos_op:
-        provider:
-          ip_address: "{{ passive_fw }}"
-          username: "{{ username }}"
-          password: "{{ password }}"
-        cmd: "show high-availability state"
-      register: passive_state_sync
-      retries: 10
-      delay: 30
-      until: >
-        (passive_state_sync.stdout | from_json).response.result.group["local-info"].state == 'passive'
-        and (passive_state_sync.stdout | from_json).response.result.group["local-info"]["state-sync"] == 'Complete'
-
-    - name: Suspend active device to trigger failover
-      paloaltonetworks.panos.panos_op:
-        provider:
-          ip_address: "{{ active_fw }}"
-          username: "{{ username }}"
-          password: "{{ password }}"
-        cmd: "request high-availability state suspend"
-
-    - name: Pause for HA switchover
-      pause:
-        seconds: 10
-
-    - name: Restore original active device to functional state
-      paloaltonetworks.panos.panos_op:
-        provider:
-          ip_address: "{{ active_fw }}"
-          username: "{{ username }}"
-          password: "{{ password }}"
-        cmd: "request high-availability state functional"
-
-    - name: Verify that former passive is now active
-      paloaltonetworks.panos.panos_op:
-        provider:
-          ip_address: "{{ passive_fw }}"
-          username: "{{ username }}"
-          password: "{{ password }}"
-        cmd: "show high-availability state"
-      register: post_failover
-      retries: 10
-      delay: 30
-      until: >
-        (post_failover.stdout | from_json).response.result.group["local-info"].state == 'active'
-
-    - name: Display final HA roles
-      debug:
-        msg:
-          - "Failover complete."
-          - "Firewall {{ passive_fw }} is now ACTIVE."
-          - "Firewall {{ active_fw }} has been restored to FUNCTIONAL state."
