@@ -47,5 +47,5 @@
 
     - name: Run tasks dedicated to active node
       ansible.builtin.include_tasks: flip_ha_auto_active.yml
-      when: ha_status.response.active
+      when: ha_status.results[0].response.active
 
