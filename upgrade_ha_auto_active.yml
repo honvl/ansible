@@ -1,101 +1,26 @@
----
-# upgrade_ha.yml - PAN-OS HA pair upgrade playbook.
-#
-# Description
-# ===========
-#
-# Upgrades a PAN-OS HA pair to the specified version.  Upgrade must be a single step (i.e. 8.1.7 to 8.1.12).  For major
-# version upgrades requiring a base image to be downloaded to the device prior to performing the upgrade, see the 
-# 'download_panos_image.yml' playbook.
-#
-# This playbook requires connection details for the two members of the HA pair to be specified in the variables 
-# 'primary_ip_address', 'secondary_ip_address', 'username', and 'password'.  These may be defined as host variables
-# (see `host_vars/ha_pair.yml` for an example) or extra vars.
-#
-# Usage
-# =====
-#
-# Required variables:
-#
-#   target: Target HA pair.  See `host_vars/ha_pair.yml` for sample definition of host variables.
-#
-#   version: Version to install.
-#
-# See the VARS section of the playbook for additional customization options.
-#
-# Default run:
-#
-#  $ ansible-playbook -i inventory upgrade_ha.yml --extra-vars "target=ha_pair version=9.0.3-h3"
-#
-# Notes
-# =====
-#
-# HA pairs with preemption enabled are not supported by this playbook.
 
-- hosts: '{{ target | default("ha_pair") }}'
-  connection: local
-
-  vars:
-
-    # backup_config - Create a backup of the currently running config before upgrading on both devices.
-    backup_config: true
-
-    # backup_filename - Filename for running config backup.
-    backup_filename: 'ansible-backup-{{ ansible_date_time.date }}.xml'
-
-    # pause_mid_upgrade - Optionally pause for additional verification during upgrade.  This playbook will perform
-    #                     basic checks for HA status and session sync, but this will wait for manual verification before
-    #                     upgrading the secondary firewall.
-    pause_mid_upgrade: False
-
-  tasks:
-    - name: Determine which firewall is active in HA
-      paloaltonetworks.panos.panos_active_in_ha:
-        ip_address: "{{ item }}"
-        username: "{{ username | default(omit) }}"
-        password: "{{ password | default(omit) }}"
-      loop:
-        - "{{ primary_ip_address }}"
-        - "{{ secondary_ip_address }}"
-      register: ha_status
-
-    - name: Set active/passive devices dynamically
-      set_fact:
-        active_fw: "{{ (ha_status.results | selectattr('response.active','equalto',true) | list | first).item }}"
-        passive_fw: "{{ (ha_status.results | selectattr('response.active','equalto',false) | list | first).item }}"
-      when: ha_status.results | length > 0
-
-    - name: Fail if no active firewall was detected
-      fail:
-        msg: "Could not detect active/passive nodes. Check credentials or HA connectivity."
-      when: active_fw is not defined
-
-    - name: Map primary/secondary provider dictionaries (primary = currently ACTIVE)
-      set_fact:
-        primary:
-          ip_address: "{{ active_fw }}"
-          username: "{{ username | default(omit) }}"
-          password: "{{ password | default(omit) }}"
-        secondary:
-          ip_address: "{{ passive_fw }}"
-          username: "{{ username | default(omit) }}"
-          password: "{{ password | default(omit) }}"
 
     - name: Backup device config (primary)
       paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
+        ip_address: '{{ primary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"        
         cmd: 'save config to {{ backup_filename }}'
       when: backup_config|bool
 
     - name: Backup device config (secondary)
       paloaltonetworks.panos.panos_op:
-        provider: '{{ secondary }}'
+        ip_address: '{{ secondary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         cmd: 'save config to {{ backup_filename }}'
       when: backup_config|bool
 
     - name: Download target PAN-OS version
       paloaltonetworks.panos.panos_software:
-        provider: '{{ primary }}'
+        ip_address: '{{ primary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         version: '{{ version }}'
         download: true
         sync_to_peer: true
@@ -103,7 +28,9 @@
 
     - name: Suspend primary device
       paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
+        ip_address: '{{ primary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         cmd: 'request high-availability state suspend'
 
     - name: Pause for suspend
@@ -112,7 +39,9 @@
 
     - name: Check that secondary is now active
       paloaltonetworks.panos.panos_op:
-        provider: '{{ secondary }}'
+        ip_address: '{{ secondary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         cmd: 'show high-availability state'
       register: secondary_active
       retries: 10
@@ -123,7 +52,9 @@
 
     - name: Install target PAN-OS version and restart (primary)
       paloaltonetworks.panos.panos_software:
-        provider: '{{ primary }}'
+        ip_address: '{{ primary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         version: '{{ version }}'
         download: false
         restart: true
@@ -137,7 +68,9 @@
 
     - name: Chassis ready (primary)
       paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
+        ip_address: '{{ primary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         cmd: 'show chassis-ready'
       changed_when: false
       register: result
@@ -147,7 +80,9 @@
 
     - name: State sync check (primary)
       paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
+        ip_address: '{{ primary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         cmd: 'show high-availability state'
       register: primary_state_sync
       retries: 10
@@ -166,7 +101,9 @@
 
     - name: Suspend secondary device
       paloaltonetworks.panos.panos_op:
-        provider: '{{ secondary }}'
+        ip_address: '{{ secondary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         cmd: 'request high-availability state suspend'
 
     - name: Pause for suspend
@@ -175,7 +112,9 @@
 
     - name: Check that primary is now active
       paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
+        ip_address: '{{ primary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         cmd: 'show high-availability state'
       register: primary_active
       retries: 10
@@ -186,7 +125,9 @@
 
     - name: Install target PAN-OS version and restart (secondary)
       paloaltonetworks.panos.panos_software:
-        provider: '{{ secondary }}'
+        ip_address: '{{ secondary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         version: '{{ version }}'
         download: false
         restart: true
@@ -200,7 +141,9 @@
 
     - name: Chassis ready (secondary)
       paloaltonetworks.panos.panos_op:
-        provider: '{{ secondary }}'
+        ip_address: '{{ secondary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         cmd: 'show chassis-ready'
       changed_when: false
       register: result
@@ -210,7 +153,9 @@
 
     - name: State sync check (secondary)
       paloaltonetworks.panos.panos_op:
-        provider: '{{ secondary }}'
+        ip_address: '{{ secondary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         cmd: 'show high-availability state'
       register: secondary_state_sync
       retries: 10

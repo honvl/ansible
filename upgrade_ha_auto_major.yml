@@ -1,0 +1,96 @@
+---
+# upgrade_ha_auto_major.yml - PAN-OS HA pair upgrade playbook.
+#
+# Description
+# ===========
+#
+# Upgrades a PAN-OS HA pair to the specified version. 
+#
+# This playbook requires connection details for the two members of the HA pair to be specified in the variables 
+# 'primary_ip_address', 'secondary_ip_address', 'username', and 'password'.  These may be defined as host variables
+# (see `host_vars/ha_pair.yml` for an example) or extra vars.
+#
+# Usage
+# =====
+#
+# Required variables:
+#
+#   target: Target HA pair.  See `host_vars/ha_pair.yml` for sample definition of host variables.
+#
+#   version: Version to install.
+#   base_version: Version of the base to downwload.
+#
+# See the VARS section of the playbook for additional customization options.
+#
+#
+# Notes
+# =====
+#
+# HA pairs with preemption enabled are not supported by this playbook.
+
+- hosts: "{{ target | default('ha_pair') }}"
+  connection: local
+  gather_facts: false
+
+
+
+  vars:
+
+    # backup_config - Create a backup of the currently running config before upgrading on both devices.
+    backup_config: true
+
+    # backup_filename - Filename for running config backup.
+    backup_filename: 'ansible-backup-{{ ansible_date_time.date }}.xml'
+
+    # pause_mid_upgrade - Optionally pause for additional verification during upgrade.  This playbook will perform
+    #                     basic checks for HA status and session sync, but this will wait for manual verification before
+    #                     upgrading the secondary firewall.
+    pause_mid_upgrade: False
+
+    sync_to_peer: True
+
+    primary:
+      ip_address: '{{ primary_ip_address }}'
+      username: '{{ username | default(omit) }}'
+      password: '{{ password | default(omit) }}'
+
+    secondary:
+      ip_address: '{{ secondary_ip_address }}'
+      username: '{{ username | default(omit) }}'
+      password: '{{ password | default(omit) }}'
+
+  tasks:
+
+    - name: Determine which firewall is active in HA
+      paloaltonetworks.panos.panos_active_in_ha:
+        ip_address: "{{ item }}"
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
+      loop:
+#        - "{{ inventory_ip_address }}"
+        - "{{ primary_ip_address }}"
+        - "{{ secondary_ip_address }}"
+      register: ha_status
+
+    - name: Set active/passive devices dynamically
+      set_fact:
+        primary: "{{ (ha_status.results | selectattr('response.active', 'equalto', true) | list | first).item }}"
+        secondary: "{{ (ha_status.results | selectattr('response.active', 'equalto', false) | list | first).item }}"
+      when: ha_status.results | length > 0
+      ignore_errors: true
+
+    - name: Download PAN-OS version
+      paloaltonetworks.panos.panos_software:
+        provider: '{{ primary }}'
+        version: '{{ base_version }}'
+        sync_to_peer: '{{ sync_to_peer }}'
+        download: true
+        install: false
+        restart: false
+
+    - name: Run tasks with dynamic nodes
+      ansible.builtin.include_tasks: upgrade_ha_auto_active.yml
+      when: ha_status.results[0].response.active
+
+
+
