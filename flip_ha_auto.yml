@@ -27,6 +27,17 @@
 
   tasks:
 
+    - name: Unsuspend devices
+      paloaltonetworks.panos.panos_op:
+        ip_address: "{{ item }}"
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
+        cmd: 'request high-availability state functional'
+      loop:
+#        - "{{ inventory_ip_address }}"
+        - "{{ primary_ip_address }}"
+        - "{{ secondary_ip_address }}"
+
     - name: Determine which firewall is active in HA
       paloaltonetworks.panos.panos_active_in_ha:
         ip_address: "{{ item }}"
