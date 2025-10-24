@@ -66,7 +66,6 @@
         primary: "{{ (ha_status.results | selectattr('response.active', 'equalto', true) | list | first).item }}"
         secondary: "{{ (ha_status.results | selectattr('response.active', 'equalto', false) | list | first).item }}"
       when: ha_status.results | length > 0
-      ignore_errors: true
 
     - name: Run tasks with dynamic nodes
       ansible.builtin.include_tasks: upgrade_ha_auto_active.yml
