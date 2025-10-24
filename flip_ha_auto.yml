@@ -45,7 +45,7 @@
       when: ha_status.results | length > 0
       ignore_errors: true
 
-    - name: Run tasks dedicated to active node
+    - name: Run tasks with dynamic nodes
       ansible.builtin.include_tasks: flip_ha_auto_active.yml
       when: ha_status.results[0].response.active
 
