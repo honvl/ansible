@@ -68,7 +68,6 @@
         password: "{{ password | default(omit) }}"
         cmd: 'request high-availability state functional'
       loop:
-#        - "{{ inventory_ip_address }}"
         - "{{ primary_ip_address }}"
         - "{{ secondary_ip_address }}"
 
@@ -78,7 +77,7 @@
         username: "{{ username | default(omit) }}"
         password: "{{ password | default(omit) }}"
       loop:
-#        - "{{ inventory_ip_address }}"
+        - "{{ inventory_ip_address }}"
         - "{{ primary_ip_address }}"
         - "{{ secondary_ip_address }}"
       register: ha_status
