@@ -6,4 +6,10 @@ collections:
   - name: cisco.ios
     version: 4.6.0
 
-#  - name: infoblox.nios_modules
+  - name: infoblox.nios_modules
+    version: 1.4.1
+
+
+
+# python version = 3.6.8 (default, Aug 11 2025, 09:47:15) [GCC 8.5.0 20210514 (Red Hat 8.5.0-28)]
+# ansible-playbook 2.9.27
