@@ -18,7 +18,7 @@
           {{ lookup('infoblox.nios_modules.nios_lookup',
                     'record:host',
                     filter={'name': hostname},
-                    provider=infoblox_provider) }}
+                    provider=nios_provider) }}
 
     - name: Extract IP
       set_fact:
