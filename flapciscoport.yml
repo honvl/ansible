@@ -12,16 +12,20 @@
       validate_certs: false
 
   tasks:
-    - name: Lookup host in Infoblox
-      infoblox.nios_modules.nios_lookup:
-        provider: "{{ nios_provider }}"
-        type: record:host
-        name: "{{ hostname }}"
-      register: nios_host
+    - name: Get host record from Infoblox (lookup plugin)
+      ansible.builtin.set_fact:
+        host_record: >-
+          {{ lookup('infoblox.nios_modules.nios_lookup',
+                    'record:host',
+                    filter={'name': hostname},
+                    provider=infoblox_provider) }}
 
-    - name: Set IP
+    - name: Extract IP
       set_fact:
-        ip_addr: "{{ nios_host.results[0].ipv4addrs[0].ipv4addr }}"
+        ip_addr: "{{ host_record[0].ipv4addrs[0].ipv4addr | default('N/A') }}"
+
+    - debug:
+        msg: "Resolved {{ hostname }} to {{ ip_addr }}"
 
     - name: Get ClearPass token
       uri:
