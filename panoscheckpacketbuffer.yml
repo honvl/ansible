@@ -1,6 +1,5 @@
 - hosts: all
-  connection: httpapi
-  gather_facts: False
+  connection: local
   collections:
     - paloaltonetworks.panos
   tasks:
