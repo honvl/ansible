@@ -30,7 +30,7 @@
 
 - hosts: "{{ target | default('ha_pair') }}"
   connection: local
-  gather_facts: false
+  gather_facts: true
 
 
 
