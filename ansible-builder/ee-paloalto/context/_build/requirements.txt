@@ -1,0 +1,6 @@
+pan-os-python
+pandevice
+xmltodict
+jmespath
+requests
+

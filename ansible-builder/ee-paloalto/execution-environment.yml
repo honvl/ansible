@@ -1,0 +1,26 @@
+version: 3
+
+dependencies:
+  galaxy: requirements.yml
+  python: requirements.txt
+
+# (Optional) Add system packages if Palo Alto SDK requires extra binaries
+# system: bindep.txt
+
+build_arg_defaults:
+  ANSIBLE_GALAXY_CLI_COLLECTION_OPTS: '-c'
+
+options:
+  package_manager_path: /usr/bin/microdnf
+
+images:
+  base_image:
+    name: registry.redhat.io/ansible-automation-platform-25/ee-minimal-rhel9:latest
+
+additional_build_files:
+  - src: ansible.cfg
+    dest: configs
+
+additional_build_steps:
+  prepend_base:
+    - COPY _build/configs/ansible.cfg /etc/ansible/ansible.cfg
