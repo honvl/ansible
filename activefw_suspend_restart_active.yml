@@ -1,0 +1,32 @@
+
+
+    - name: Suspend primary device
+      paloaltonetworks.panos.panos_op:
+        ip_address: '{{ primary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
+        cmd: 'request high-availability state suspend'
+
+    - name: Pause for suspend
+      pause:
+        seconds: 30
+
+    - name: Check that secondary is now active
+      paloaltonetworks.panos.panos_op:
+        ip_address: '{{ secondary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
+        cmd: 'show high-availability state'
+      register: secondary_active
+      retries: 10
+      delay: 30
+      until: ( secondary_active.stdout | from_json).response.result.group["local-info"].state == 'active' and
+             ( secondary_active.stdout | from_json).response.result.group["peer-info"].state == 'suspended' and
+             ( secondary_active.stdout | from_json).response.result.group["peer-info"]["state-reason"] == 'User requested' # yamllint disable-line
+
+    - name: Palo Alto restart
+      paloaltonetworks.panos.panos_restart:
+      provider:
+        ip_address: '{{ primary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"

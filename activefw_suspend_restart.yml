@@ -1,0 +1,73 @@
+---
+# switch_suspend_restart.yml - PAN-OS HA pair upgrade playbook.
+#
+# Description
+# ===========
+#
+# This playbook suspends the active firewall and then restarts it.
+#
+# Usage
+# =====
+#
+# Required variables:
+#
+#   target: Target HA pair.  See `host_vars/ha_pair.yml` for sample definition of host variables.
+#
+#
+#
+
+
+- hosts: "{{ target | default('ha_pair') }}"
+  connection: local
+  gather_facts: true
+
+
+
+  vars:
+
+    # backup_config - Create a backup of the currently running config before upgrading on both devices.
+    backup_config: true
+
+    # backup_filename - Filename for running config backup.
+    backup_filename: 'ansible-backup-{{ ansible_date_time.date }}.xml'
+
+    # pause_mid_upgrade - Optionally pause for additional verification during upgrade.  This playbook will perform
+    #                     basic checks for HA status and session sync, but this will wait for manual verification before
+    #                     upgrading the secondary firewall.
+    pause_mid_upgrade: False
+
+  tasks:
+
+    - name: Unsuspend devices
+      paloaltonetworks.panos.panos_op:
+        ip_address: "{{ item }}"
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
+        cmd: 'request high-availability state functional'
+      loop:
+        - "{{ primary_ip_address }}"
+        - "{{ secondary_ip_address }}"
+
+    - name: Determine which firewall is active in HA
+      paloaltonetworks.panos.panos_active_in_ha:
+        ip_address: "{{ item }}"
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
+      loop:
+        - "{{ inventory_ip_address }}"
+        - "{{ primary_ip_address }}"
+        - "{{ secondary_ip_address }}"
+      register: ha_status
+
+    - name: Set active/passive devices dynamically
+      set_fact:
+        primary: "{{ (ha_status.results | selectattr('response.active', 'equalto', true) | list | first).item }}"
+        secondary: "{{ (ha_status.results | selectattr('response.active', 'equalto', false) | list | first).item }}"
+      when: ha_status.results | length > 0
+
+    - name: Run tasks with dynamic nodes
+      ansible.builtin.include_tasks: activefw_suspend_restart_active.yml
+      when: ha_status.results[0].response.active
+
+
+
