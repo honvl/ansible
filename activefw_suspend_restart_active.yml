@@ -26,7 +26,6 @@
 
     - name: Palo Alto restart
       paloaltonetworks.panos.panos_restart:
-      provider:
         ip_address: '{{ primary }}'
         username: "{{ username | default(omit) }}"
         password: "{{ password | default(omit) }}"
