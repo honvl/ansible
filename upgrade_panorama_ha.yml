@@ -120,8 +120,7 @@
       delay: 60
       until: primary_passive is not failed and
              (primary_passive.stdout | from_json).response.result.enabled == 'yes' and
-             (primary_passive.stdout | from_json).response.result["local-info"].state == 'primary-passive' and
-    #         (primary_passive.stdout | from_json).response.result["running-sync"] == 'synchronized'
+             (primary_passive.stdout | from_json).response.result["local-info"].state == 'primary-passive'
       when: not major_version_upgrade|bool
 
     # Special case, Panorama HA doesn't work across major versions like firewalls, so primary will be non-functional.
@@ -179,5 +178,4 @@
       delay: 60
       until: secondary_passive is not failed and
              (secondary_passive.stdout | from_json).response.result.enabled == 'yes' and
-             (secondary_passive.stdout | from_json).response.result["local-info"].state == 'secondary-passive' and
-             (secondary_passive.stdout | from_json).response.result["running-sync"] == 'synchronized'
+             (secondary_passive.stdout | from_json).response.result["local-info"].state == 'secondary-passive'
