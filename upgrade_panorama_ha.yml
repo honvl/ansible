@@ -69,11 +69,12 @@
         cmd: 'save config to {{ backup_filename }}'
       when: backup_config|bool
 
-    - name: Backup device config (secondary)
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ secondary }}'
-        cmd: 'save config to {{ backup_filename }}'
-      when: backup_config|bool
+#   Auto syncs with peer in 11.1
+#    - name: Backup device config (secondary)
+#      paloaltonetworks.panos.panos_op:
+#        provider: '{{ secondary }}'
+#        cmd: 'save config to {{ backup_filename }}'
+#      when: backup_config|bool
 
     - name: Download target PAN-OS version
       paloaltonetworks.panos.panos_software:
