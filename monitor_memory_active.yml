@@ -54,23 +54,21 @@
   set_fact:
     avail_mem_mib: "{{ resources_text | regex_search('([\\d.]+)\\s+avail\\s+Mem', '\\1') | first | default('UNKNOWN') }}"
 
-- name: Parse pan_task VIRT values
+- name: Extract pan_task lines from resources output
   set_fact:
-    pan_task_virt_list: "{{ resources_text | regex_findall('\\S+\\s+root\\s+\\S+\\s+\\S+\\s+(\\S+)\\s+\\S+\\s+\\S+\\s+\\S+\\s+\\S+\\s+\\S+\\s+\\S+\\s+pan_task') }}"
+    pan_task_lines: "{{ resources_text.split('\n') | select('search', 'pan_task') | list }}"
 
-- name: Set pan_task VIRT display value
+- name: Parse pan_task VIRT from first matching line (5th column in top output)
   set_fact:
-    pan_task_virt: "{{ pan_task_virt_list | first | default('UNKNOWN') }}"
-  when: pan_task_virt_list | length > 0
+    pan_task_virt: "{{ (pan_task_lines[0].split()[4]) }}"
+    pan_task_count: "{{ pan_task_lines | length }}"
+  when: pan_task_lines | length > 0
 
 - name: Fallback if no pan_task found
   set_fact:
     pan_task_virt: "UNKNOWN"
-  when: pan_task_virt_list | length == 0
-
-- name: Count pan_task processes
-  set_fact:
-    pan_task_count: "{{ pan_task_virt_list | length }}"
+    pan_task_count: "0"
+  when: pan_task_lines | length == 0
 
 - name: Display parsed values
   debug:
@@ -141,8 +139,7 @@
 # =========================================================================
 
 - name: Send memory monitoring report email
-  local_action:
-    module: mail
+  community.general.mail:
     host: outlook.dpw.com
     port: 25
     from: ansible@davispolk.com
@@ -192,3 +189,4 @@
         - Avail Mem < 5500 MiB  (normal: ~7400-7500 MiB)
       ============================================================
   run_once: true
+  delegate_to: localhost
