@@ -1,0 +1,194 @@
+# monitor_memory_active.yml - Runs against the active firewall only
+# Called by monitor_memory.yml after HA active detection
+#
+# Expects these variables to already be set:
+#   active_fw, passive_fw, username, password
+
+# =========================================================================
+# Step 1: Gather hostname from the active firewall
+# =========================================================================
+
+- name: Get system info from active firewall
+  paloaltonetworks.panos.panos_op:
+    provider:
+      ip_address: "{{ active_fw }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+    cmd: "show system info"
+  register: system_info_raw
+
+- name: Parse hostname from system info
+  set_fact:
+    fw_hostname: "{{ (system_info_raw.stdout | from_json).response.result.system.hostname }}"
+
+- name: Display active firewall hostname
+  debug:
+    msg: "Active firewall hostname: {{ fw_hostname }}"
+
+# =========================================================================
+# Step 2: Get system resources (top output) from the active firewall
+# =========================================================================
+
+- name: Get system resources from active firewall
+  paloaltonetworks.panos.panos_op:
+    provider:
+      ip_address: "{{ active_fw }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+    cmd: "show system resources"
+  register: resources_raw
+
+- name: Extract resource output text
+  set_fact:
+    resources_text: "{{ (resources_raw.stdout | from_json).response.result }}"
+
+- name: Display raw system resources
+  debug:
+    msg: "{{ resources_text }}"
+
+# =========================================================================
+# Step 3: Parse available memory and pan_task VIRT from the output
+# =========================================================================
+
+- name: Parse available memory (MiB)
+  set_fact:
+    avail_mem_mib: "{{ resources_text | regex_search('([\\d.]+)\\s+avail\\s+Mem', '\\1') | first | default('UNKNOWN') }}"
+
+- name: Parse pan_task VIRT values
+  set_fact:
+    pan_task_virt_list: "{{ resources_text | regex_findall('\\S+\\s+root\\s+\\S+\\s+\\S+\\s+(\\S+)\\s+\\S+\\s+\\S+\\s+\\S+\\s+\\S+\\s+\\S+\\s+\\S+\\s+pan_task') }}"
+
+- name: Set pan_task VIRT display value
+  set_fact:
+    pan_task_virt: "{{ pan_task_virt_list | first | default('UNKNOWN') }}"
+  when: pan_task_virt_list | length > 0
+
+- name: Fallback if no pan_task found
+  set_fact:
+    pan_task_virt: "UNKNOWN"
+  when: pan_task_virt_list | length == 0
+
+- name: Count pan_task processes
+  set_fact:
+    pan_task_count: "{{ pan_task_virt_list | length }}"
+
+- name: Display parsed values
+  debug:
+    msg:
+      - "Available Memory: {{ avail_mem_mib }} MiB"
+      - "pan_task VIRT: {{ pan_task_virt }}"
+      - "pan_task process count: {{ pan_task_count }}"
+
+# =========================================================================
+# Step 4: Evaluate critical thresholds
+#   - pan_task VIRT >= 144G  (crash occurred at 147G)
+#   - Available memory < 5500 MiB
+# =========================================================================
+
+- name: Parse pan_task VIRT numeric value in GB
+  set_fact:
+    pan_task_virt_gb: >-
+      {% if pan_task_virt != 'UNKNOWN' %}
+      {% if 'g' in pan_task_virt | lower %}
+      {{ pan_task_virt | lower | replace('g','') | float }}
+      {% elif 'm' in pan_task_virt | lower %}
+      {{ (pan_task_virt | lower | replace('m','') | float) / 1024 }}
+      {% elif 't' in pan_task_virt | lower %}
+      {{ (pan_task_virt | lower | replace('t','') | float) * 1024 }}
+      {% else %}
+      0
+      {% endif %}
+      {% else %}
+      0
+      {% endif %}
+
+- name: Evaluate pan_task VIRT threshold
+  set_fact:
+    virt_critical: "{{ (pan_task_virt_gb | float) >= 144.0 }}"
+
+- name: Evaluate available memory threshold
+  set_fact:
+    avail_mem_critical: "{{ (avail_mem_mib | float) < 5500.0 }}"
+  when: avail_mem_mib != 'UNKNOWN'
+
+- name: Fallback avail_mem_critical if unknown
+  set_fact:
+    avail_mem_critical: "false"
+  when: avail_mem_mib == 'UNKNOWN'
+
+- name: Determine overall memory status
+  set_fact:
+    memory_status: "{{ 'CRITICAL' if (virt_critical | bool or avail_mem_critical | bool) else 'OK' }}"
+
+- name: Build critical reasons list
+  set_fact:
+    critical_reasons: >-
+      {% set reasons = [] %}
+      {% if virt_critical | bool %}{% if reasons.append('pan_task VIRT (' + pan_task_virt + ') >= 144G') %}{% endif %}{% endif %}
+      {% if avail_mem_critical | bool %}{% if reasons.append('Avail Mem (' + avail_mem_mib + ' MiB) < 5500 MiB') %}{% endif %}{% endif %}
+      {{ reasons | join('; ') }}
+
+- name: Display memory status
+  debug:
+    msg:
+      - "Memory Status: {{ memory_status }}"
+      - "pan_task VIRT: {{ pan_task_virt }} (threshold: 144G)"
+      - "Avail Mem: {{ avail_mem_mib }} MiB (threshold: 5500 MiB)"
+      - "{{ 'Critical reasons: ' + critical_reasons if memory_status == 'CRITICAL' else 'All within normal range' }}"
+
+# =========================================================================
+# Step 5: Email results to networking@davispolk.com
+# =========================================================================
+
+- name: Send memory monitoring report email
+  local_action:
+    module: mail
+    host: outlook.dpw.com
+    port: 25
+    from: ansible@davispolk.com
+    to: networking@davispolk.com
+    subject: "[{{ memory_status }}] PAN-OS Memory Report - {{ fw_hostname }} ({{ active_fw }})"
+    subtype: plain
+    body: |
+      ============================================================
+      PAN-OS Memory Monitoring Report
+      ============================================================
+
+      Hostname:            {{ fw_hostname }}
+      Active Firewall IP:  {{ active_fw }}
+      Passive Firewall IP: {{ passive_fw }}
+      Report Time:         {{ lookup('pipe', 'date') }}
+
+      ------------------------------------------------------------
+      MEMORY SUMMARY
+      ------------------------------------------------------------
+      Available Memory:    {{ avail_mem_mib }} MiB
+      pan_task VIRT:       {{ pan_task_virt }}
+      pan_task processes:  {{ pan_task_count }}
+      Status:              {{ memory_status }}
+
+      {% if memory_status == 'CRITICAL' %}
+      *** CRITICAL: {{ critical_reasons }}
+      ***
+      {% if virt_critical | bool %}
+      *** pan_task VIRT has reached or exceeded 144G.
+      *** The last time it hit 147G, the firewall crashed (OOM).
+      {% endif %}
+      {% if avail_mem_critical | bool %}
+      *** Available memory has dropped below 5500 MiB.
+      *** Normal range is ~7400-7500 MiB (dips to ~6700 during commits).
+      {% endif %}
+      *** Immediate investigation is recommended.
+      {% endif %}
+
+      ------------------------------------------------------------
+      RAW SYSTEM RESOURCES OUTPUT
+      ------------------------------------------------------------
+      {{ resources_text }}
+
+      ============================================================
+      Thresholds:
+        - pan_task VIRT >= 144G  (crash point: 147G)
+        - Avail Mem < 5500 MiB  (normal: ~7400-7500 MiB)
+      ============================================================
+  run_once: true

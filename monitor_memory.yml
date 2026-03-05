@@ -1,0 +1,71 @@
+---
+# monitor_memory.yml - Monitor pan_task VIRT memory and available memory on active PAN-OS firewall
+#
+# Description
+# ===========
+# This playbook automatically detects the active member in a Palo Alto HA pair,
+# then runs the monitoring tasks (in monitor_memory_active.yml) against only
+# the active firewall. It retrieves system resource usage and parses:
+#   - Available Memory (MiB)
+#   - pan_task VIRT memory usage
+#
+# If pan_task VIRT reaches 144G or above, the email subject is flagged [CRITICAL].
+# The last time pan_task reached 147G, the firewall crashed (out-of-memory).
+# The 144G threshold provides early warning before a potential crash.
+#
+# Results are emailed to networking@davispolk.com.
+#
+# Usage
+# =====
+# Example:
+#   ansible-playbook -i inventory monitor_memory.yml --extra-vars "target=ha_pair username=admin password=changeme"
+#
+# Required Variables:
+#   target: Target host group (e.g., ha_pair)
+#   username, password or api_key
+#
+# Notes
+# =====
+# - Assumes both HA peers are reachable
+# - SMTP relay: outlook.dpw.com:25 (no auth required)
+
+- name: Detect active firewall and monitor pan_task memory
+  hosts: "{{ target | default('ha_pair') }}"
+  connection: local
+  gather_facts: false
+
+  tasks:
+
+    # =========================================================================
+    # Step 1: Determine which firewall is active in the HA pair
+    # =========================================================================
+
+    - name: Determine which firewall is active in HA
+      paloaltonetworks.panos.panos_active_in_ha:
+        ip_address: "{{ item }}"
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
+      loop:
+        - "{{ primary_ip_address }}"
+        - "{{ secondary_ip_address }}"
+      register: ha_status
+
+    - name: Set active/passive firewall IPs dynamically
+      set_fact:
+        active_fw: "{{ (ha_status.results | selectattr('response.active', 'equalto', true) | list | first).item }}"
+        passive_fw: "{{ (ha_status.results | selectattr('response.active', 'equalto', false) | list | first).item }}"
+      when: ha_status.results | length > 0
+
+    - name: Display active/passive firewall IPs
+      debug:
+        msg:
+          - "Active Firewall IP: {{ active_fw }}"
+          - "Passive Firewall IP: {{ passive_fw }}"
+
+    # =========================================================================
+    # Step 2: Run monitoring tasks against the active firewall only
+    # =========================================================================
+
+    - name: Run memory monitoring tasks on active firewall
+      ansible.builtin.include_tasks: monitor_memory_active.yml
+      when: ha_status.results[0].response.active
