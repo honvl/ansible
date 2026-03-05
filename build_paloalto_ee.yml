@@ -45,7 +45,6 @@
             collections:
               - name: paloaltonetworks.panos
                 version: ">=3.2.0"
-              - name: community.general
           python_interpreter:
             python_path: "/usr/bin/python3.11"
         build_steps:

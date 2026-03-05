@@ -139,7 +139,8 @@
 # =========================================================================
 
 - name: Send memory monitoring report email
-  community.general.mail:
+  local_action:
+    module: mail
     host: outlook.dpw.com
     port: 25
     from: ansible@davispolk.com
@@ -189,4 +190,3 @@
         - Avail Mem < 5500 MiB  (normal: ~7400-7500 MiB)
       ============================================================
   run_once: true
-  delegate_to: localhost
