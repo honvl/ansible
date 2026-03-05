@@ -1,8 +1,8 @@
 ---
 - name: Build new Palo Alto EE using EE Utils collection
-  hosts: localhost # Replace with the machine where you run builder (e.g. ansibledev.shadowman.dev)
-  connection: local
+  hosts: "{{ builder_host | default('localhost') }}" # Example: Pass -e builder_host=my_aap_node
   become: true
+  become_user: dpwuser450
   tags: buildee
 
   vars:
