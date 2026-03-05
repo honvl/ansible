@@ -18,12 +18,12 @@
     
     ee_prune_images: true
     ee_pull_collections_from_hub: true
-    ee_ah_host: "{{ lookup('env', 'AH_HOST') }}"
-    ee_ah_token: "{{ lookup('env', 'AH_API_TOKEN') }}"
+    ee_ah_host: "{{ ah_host }}"
+    ee_ah_token: "{{ ah_token }}"
     alt_name: "Palo Alto Networks Execution Environment"
     ee_name: paloalto_ee
     ee_reg_credential: Automation Hub Container Registry
-    ee_registry_dest: "{{ lookup('env', 'AH_HOST') }}"
+    ee_registry_dest: "{{ ah_host }}"
     ee_registry_username: "{{ pah_user }}"
     ee_registry_password: "{{ pah_pass }}"
     ee_verbosity: 1
