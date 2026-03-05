@@ -1,0 +1,59 @@
+---
+- name: Build new Palo Alto EE using EE Utils collection
+  hosts: localhost # Replace with the machine where you run builder (e.g. ansibledev.shadowman.dev)
+  tags: buildee
+
+  vars:
+    ee_version: 3
+    ee_builder_dir_clean: false
+    ee_builder_dir: "/home/ansible/ansible/builder/paloalto_ee" # Adjust path as needed
+    ee_update_base_images: true
+    
+    # Base image and registry variables
+    ee_base_image: registry.redhat.io/ansible-automation-platform-25/ee-minimal-rhel9:latest
+    ee_base_sig_name: registry.redhat.io/ansible-automation-platform-25/ee-minimal-rhel9:latest
+    ee_container_policy: system
+    ee_base_registry_username: "{{ pah_user }}"
+    ee_base_registry_password: "{{ pah_pass }}"
+    
+    ee_prune_images: true
+    ee_pull_collections_from_hub: true
+    ee_ah_host: "{{ lookup('env', 'AH_HOST') }}"
+    ee_ah_token: "{{ lookup('env', 'AH_API_TOKEN') }}"
+    alt_name: "Palo Alto Networks Execution Environment"
+    ee_name: paloalto_ee
+    ee_reg_credential: Automation Hub Container Registry
+    ee_registry_dest: "{{ lookup('env', 'AH_HOST') }}"
+    ee_registry_username: "{{ pah_user }}"
+    ee_registry_password: "{{ pah_pass }}"
+    ee_verbosity: 1
+    
+    # Define the EE structure
+    ee_list:
+      - name: paloalto_ee
+        alt_name: "Palo Alto Networks Execution Environment"
+        tag: "{{ ansible_date_time.iso8601_basic_short }}"
+        dependencies:
+          python:
+            # Install any required python packages directly
+            - pan-os-python
+            - pan-python
+            - pandevice
+            - xmltodict
+            - requests
+          galaxy:
+            collections:
+              - name: paloaltonetworks.panos
+                version: ">=3.2.0"
+              - name: community.general
+          python_interpreter:
+            python_path: "/usr/bin/python3.11"
+        build_steps:
+          append_final:
+            - RUN rm -f /etc/ansible/ansible.cfg
+
+  roles:
+    # Ensure these roles exist in your controller environment
+    - ah_login
+    - infra.ee_utilities.ee_builder
+    - ah_update_controller
