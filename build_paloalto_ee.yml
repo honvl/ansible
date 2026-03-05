@@ -72,5 +72,7 @@
         name: "{{ alt_name }}"
         image: "{{ ah_host }}/{{ ee_name }}:{{ ansible_date_time.iso8601_basic_short }}"
         credential: "{{ ee_reg_credential }}"
+        controller_host: "https://{{ ah_host | regex_replace('^https?://', '') }}"
+        controller_validate_certs: false
       delegate_to: localhost
       become: false
