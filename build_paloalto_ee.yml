@@ -50,10 +50,15 @@
               - name: community.general
           python_interpreter:
             python_path: "/usr/bin/python3.11"
+        # Copy the pre-existing, working ansible.cfg from the repository
+        additional_build_files:
+          - src: "../ansible-builder/ee-paloalto/ansible.cfg" # Ensure this path is relative or absolute correctly
+            dest: "configs"
+            
         build_steps:
           prepend_galaxy:
             - RUN mkdir -p /etc/ansible
-            - RUN echo -e "[galaxy]\nserver_list = automation_hub\n\n[galaxy_server.automation_hub]\nurl=https://{{ ah_host | regex_replace('^https?://', '') }}/\ntoken={{ ah_token }}\nvalidate_certs=False" > /etc/ansible/ansible.cfg
+            - COPY _build/configs/ansible.cfg /etc/ansible/ansible.cfg
           append_final:
             - RUN rm -f /etc/ansible/ansible.cfg
 
