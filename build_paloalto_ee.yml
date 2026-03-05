@@ -73,3 +73,4 @@
         image: "{{ ah_host }}/{{ ee_name }}:{{ ansible_date_time.iso8601_basic_short }}"
         credential: "{{ ee_reg_credential }}"
       delegate_to: localhost
+      become: false
