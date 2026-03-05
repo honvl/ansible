@@ -58,9 +58,9 @@
   set_fact:
     pan_task_lines: "{{ resources_text.split('\n') | select('search', 'pan_task') | list }}"
 
-- name: Parse pan_task VIRT from first matching line (5th column in top output)
+- name: Parse pan_task VIRT from first matching line (8th column from the end)
   set_fact:
-    pan_task_virt: "{{ (pan_task_lines[0].split()[4]) }}"
+    pan_task_virt: "{{ (pan_task_lines[0].split()[-8]) }}"
     pan_task_count: "{{ pan_task_lines | length }}"
   when: pan_task_lines | length > 0
 
@@ -139,8 +139,7 @@
 # =========================================================================
 
 - name: Send memory monitoring report email
-  local_action:
-    module: mail
+  community.general.mail:
     host: outlook.dpw.com
     port: 25
     from: ansible@davispolk.com
