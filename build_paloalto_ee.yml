@@ -19,9 +19,7 @@
     ee_base_registry_password: "{{ rh_pass | default(pah_pass) }}"
     
     ee_prune_images: true
-    ee_pull_collections_from_hub: true
-    ee_ah_host: "{{ ah_host | regex_replace('^https?://', '') }}"
-    ee_ah_token: "{{ ah_token }}"
+    ee_pull_collections_from_hub: false
     alt_name: "Palo Alto Networks Execution Environment"
     ee_name: paloalto_ee
     ee_reg_credential: Automation Hub Container Registry
@@ -50,17 +48,6 @@
               - name: community.general
           python_interpreter:
             python_path: "/usr/bin/python3.11"
-        # Copy the pre-existing, working ansible.cfg from the repository
-        additional_build_files:
-          - src: "../ansible-builder/ee-paloalto/ansible.cfg" # Ensure this path is relative or absolute correctly
-            dest: "configs"
-            
-        build_steps:
-          prepend_galaxy:
-            - RUN mkdir -p /etc/ansible
-            - COPY _build/configs/ansible.cfg /etc/ansible/ansible.cfg
-          append_final:
-            - RUN rm -f /etc/ansible/ansible.cfg
 
   pre_tasks:
     - name: Login to PAH
