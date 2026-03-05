@@ -1,6 +1,6 @@
 ---
 - name: Build new Palo Alto EE using EE Utils collection
-  hosts: "{{ builder_host | default('localhost') }}" # Example: Pass -e builder_host=my_aap_node
+  hosts: "{{ target | default('builder_host') }}"
   become: true
   become_user: dpwuser450
   tags: buildee
