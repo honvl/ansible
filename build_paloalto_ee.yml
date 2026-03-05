@@ -52,8 +52,21 @@
           append_final:
             - RUN rm -f /etc/ansible/ansible.cfg
 
+  pre_tasks:
+    - name: Login to PAH
+      containers.podman.podman_login:
+        username: "{{ pah_user }}"
+        password: "{{ pah_pass }}"
+        registry: "{{ ah_host }}"
+
   roles:
     # Ensure these roles exist in your controller environment
-    - ah_login
     - infra.ee_utilities.ee_builder
-    - ah_update_controller
+
+  post_tasks:
+    - name: Update Execution Environment Version in Controller with new version
+      ansible.controller.execution_environment:
+        name: "{{ alt_name }}"
+        image: "{{ ah_host }}/{{ ee_name }}:{{ ansible_date_time.iso8601_basic_short }}"
+        credential: "{{ ee_reg_credential }}"
+      delegate_to: localhost
