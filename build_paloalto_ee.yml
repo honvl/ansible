@@ -20,7 +20,7 @@
     
     ee_prune_images: true
     ee_pull_collections_from_hub: true
-    ee_ah_host: "{{ ah_host }}"
+    ee_ah_host: "https://pyaap1.ad.dpw.com/pulp_ansible/galaxy/community/"
     ee_ah_token: "{{ ah_token }}"
     alt_name: "Palo Alto Networks Execution Environment"
     ee_name: paloalto_ee
@@ -51,6 +51,9 @@
           python_interpreter:
             python_path: "/usr/bin/python3.11"
         build_steps:
+          prepend_galaxy:
+            - RUN mkdir -p /etc/ansible
+            - RUN echo -e "[galaxy]\nserver_list = automation_hub\n\n[galaxy_server.automation_hub]\nurl=https://pyaap1.ad.dpw.com/pulp_ansible/galaxy/community/\ntoken={{ ah_token }}\nvalidate_certs=False" > /etc/ansible/ansible.cfg
           append_final:
             - RUN rm -f /etc/ansible/ansible.cfg
 
