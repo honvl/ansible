@@ -10,24 +10,33 @@
     ee_builder_dir_clean: false
     ee_builder_dir: "/home/dpwuser450/ansible/builder/paloalto_ee" # Changed from /home/ansible due to permission denied
     ee_update_base_images: true
-    
-    # Base image and registry variables
+
+    # credential names provided via extra vars or attached to the job template
+    pah_credential: "Automation Hub Container Registry"
+    rh_credential: "Red Hat Container Registry"
+    # controller uses the same credential as PAH
+
+    # look up the credentials once and use throughout the play
+    pah_cred: "{{ lookup('awx.awx.credential', pah_credential) }}"
+    rh_cred: "{{ lookup('awx.awx.credential', rh_credential) }}"
+
+    # Base image and registry variables (use credential lookups)
     ee_base_image: registry.redhat.io/ansible-automation-platform-25/ee-minimal-rhel9:latest
     ee_base_sig_name: registry.redhat.io/ansible-automation-platform-25/ee-minimal-rhel9:latest
     ee_container_policy: system
-    ee_base_registry_username: "{{ rh_user | default(pah_user) }}"
-    ee_base_registry_password: "{{ rh_pass | default(pah_pass) }}"
-    
+    ee_base_registry_username: "{{ rh_cred.username | default(pah_cred.username) }}"
+    ee_base_registry_password: "{{ rh_cred.password | default(pah_cred.password) }}"
+
     ee_prune_images: true
     ee_pull_collections_from_hub: false
     alt_name: "Palo Alto Networks Execution Environment"
     ee_name: ee_paloalto
     ee_reg_credential: Automation Hub Container Registry
     ee_registry_dest: "{{ ah_host }}"
-    ee_registry_username: "{{ pah_user }}"
-    ee_registry_password: "{{ pah_pass }}"
+    ee_registry_username: "{{ pah_cred.username }}"
+    ee_registry_password: "{{ pah_cred.password }}"
     ee_verbosity: 1
-    
+
     # Define the EE structure
     ee_list:
       - name: ee_paloalto
@@ -52,14 +61,14 @@
   pre_tasks:
     - name: Login to PAH
       containers.podman.podman_login:
-        username: "{{ pah_user }}"
-        password: "{{ pah_pass }}"
+        username: "{{ pah_cred.username }}"
+        password: "{{ pah_cred.password }}"
         registry: "{{ ah_host }}"
 
     - name: Login to Red Hat Registry
       containers.podman.podman_login:
-        username: "{{ rh_user | default(pah_user) }}"
-        password: "{{ rh_pass | default(pah_pass) }}"
+        username: "{{ rh_cred.username | default(pah_cred.username) }}"
+        password: "{{ rh_cred.password | default(pah_cred.password) }}"
         registry: "registry.redhat.io"
 
   roles:
@@ -73,8 +82,8 @@
         image: "{{ ah_host }}/{{ ee_name }}:{{ ansible_date_time.iso8601_basic_short }}"
         credential: "{{ ee_reg_credential }}"
         controller_host: "https://{{ ah_host | regex_replace('^https?://', '') }}"
-        controller_username: "{{ pah_user }}"
-        controller_password: "{{ pah_pass }}"
+        controller_username: "{{ pah_cred.username }}"
+        controller_password: "{{ pah_cred.password }}"
         validate_certs: false
       delegate_to: localhost
       become: false
