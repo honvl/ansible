@@ -21,7 +21,7 @@
     ee_prune_images: true
     ee_pull_collections_from_hub: false
     alt_name: "Palo Alto Networks Execution Environment"
-    ee_name: paloalto_ee
+    ee_name: ee_paloalto
     ee_reg_credential: Automation Hub Container Registry
     ee_registry_dest: "{{ ah_host }}"
     ee_registry_username: "{{ pah_user }}"
@@ -30,7 +30,7 @@
     
     # Define the EE structure
     ee_list:
-      - name: paloalto_ee
+      - name: ee_paloalto
         alt_name: "Palo Alto Networks Execution Environment"
         tag: "{{ ansible_date_time.iso8601_basic_short }}"
         dependencies:
@@ -73,6 +73,8 @@
         image: "{{ ah_host }}/{{ ee_name }}:{{ ansible_date_time.iso8601_basic_short }}"
         credential: "{{ ee_reg_credential }}"
         controller_host: "https://{{ ah_host | regex_replace('^https?://', '') }}"
+        controller_username: "{{ pah_user }}"
+        controller_password: "{{ pah_pass }}"
         validate_certs: false
       delegate_to: localhost
       become: false
