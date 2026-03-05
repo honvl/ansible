@@ -6,6 +6,7 @@
   vars:
     ee_version: 3
     ee_builder_dir_clean: false
+    ee_builder_container_runtime: docker
     ee_builder_dir: "/home/ansible/ansible/builder/paloalto_ee" # Adjust path as needed
     ee_update_base_images: true
     
@@ -54,7 +55,7 @@
 
   pre_tasks:
     - name: Login to PAH
-      containers.podman.podman_login:
+      community.docker.docker_login:
         username: "{{ pah_user }}"
         password: "{{ pah_pass }}"
         registry: "{{ ah_host }}"
