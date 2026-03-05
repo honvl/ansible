@@ -8,7 +8,7 @@
   vars:
     ee_version: 3
     ee_builder_dir_clean: false
-    ee_builder_dir: "/home/ansible/ansible/builder/paloalto_ee" # Adjust path as needed
+    ee_builder_dir: "/home/dpwuser450/ansible/builder/paloalto_ee" # Changed from /home/ansible due to permission denied
     ee_update_base_images: true
     
     # Base image and registry variables
