@@ -15,8 +15,8 @@
     ee_base_image: registry.redhat.io/ansible-automation-platform-25/ee-minimal-rhel9:latest
     ee_base_sig_name: registry.redhat.io/ansible-automation-platform-25/ee-minimal-rhel9:latest
     ee_container_policy: system
-    ee_base_registry_username: "{{ pah_user }}"
-    ee_base_registry_password: "{{ pah_pass }}"
+    ee_base_registry_username: "{{ rh_user | default(pah_user) }}"
+    ee_base_registry_password: "{{ rh_pass | default(pah_pass) }}"
     
     ee_prune_images: true
     ee_pull_collections_from_hub: true
@@ -60,6 +60,12 @@
         username: "{{ pah_user }}"
         password: "{{ pah_pass }}"
         registry: "{{ ah_host }}"
+
+    - name: Login to Red Hat Registry
+      containers.podman.podman_login:
+        username: "{{ rh_user | default(pah_user) }}"
+        password: "{{ rh_pass | default(pah_pass) }}"
+        registry: "registry.redhat.io"
 
   roles:
     # Ensure these roles exist in your controller environment
