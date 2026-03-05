@@ -2,4 +2,3 @@ collections:
   - name: infra.ee_utilities
     # You can specify a version if needed, e.g., version: '>=3.0.0'
   - name: containers.podman
-  - name: ansible.controller
