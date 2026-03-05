@@ -2,6 +2,8 @@
 - name: Build new Palo Alto EE using EE Utils collection
   hosts: localhost # Replace with the machine where you run builder (e.g. ansibledev.shadowman.dev)
   connection: local
+  become: true
+  become_user: dpwuser450
   tags: buildee
 
   vars:
