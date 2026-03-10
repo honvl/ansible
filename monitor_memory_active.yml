@@ -47,7 +47,7 @@
     msg: "{{ resources_text }}"
 
 # =========================================================================
-# Step 3: Parse available memory and pan_task VIRT from the output
+# Step 3: Parse available memory, pan_task VIRT, and configd RES
 # =========================================================================
 
 - name: Parse available memory (MiB)
@@ -70,16 +70,32 @@
     pan_task_count: "0"
   when: pan_task_lines | length == 0
 
+- name: Extract configd lines from resources output
+  set_fact:
+    configd_lines: "{{ resources_text.split('\n') | select('search', 'configd') | list }}"
+
+- name: Parse configd RES from first matching line (7th column from the end)
+  set_fact:
+    configd_res: "{{ (configd_lines[0].split()[-7]) }}"
+  when: configd_lines | length > 0
+
+- name: Fallback if no configd found
+  set_fact:
+    configd_res: "UNKNOWN"
+  when: configd_lines | length == 0
+
 - name: Display parsed values
   debug:
     msg:
       - "Available Memory: {{ avail_mem_mib }} MiB"
       - "pan_task VIRT: {{ pan_task_virt }}"
       - "pan_task process count: {{ pan_task_count }}"
+      - "configd RES: {{ configd_res }}"
 
 # =========================================================================
 # Step 4: Evaluate critical thresholds
 #   - pan_task VIRT >= 144G  (crash occurred at 147G)
+#   - configd RES > 4.5G
 #   - Available memory < 5500 MiB
 # =========================================================================
 
@@ -104,6 +120,27 @@
   set_fact:
     virt_critical: "{{ (pan_task_virt_gb | float) >= 144.0 }}"
 
+- name: Parse configd RES numeric value in GB
+  set_fact:
+    configd_res_gb: >-
+      {% if configd_res != 'UNKNOWN' %}
+      {% if 'g' in configd_res | lower %}
+      {{ configd_res | lower | replace('g','') | float }}
+      {% elif 'm' in configd_res | lower %}
+      {{ (configd_res | lower | replace('m','') | float) / 1024 }}
+      {% elif 't' in configd_res | lower %}
+      {{ (configd_res | lower | replace('t','') | float) * 1024 }}
+      {% else %}
+      0
+      {% endif %}
+      {% else %}
+      0
+      {% endif %}
+
+- name: Evaluate configd RES threshold
+  set_fact:
+    configd_res_critical: "{{ (configd_res_gb | float) > 4.5 }}"
+
 - name: Evaluate available memory threshold
   set_fact:
     avail_mem_critical: "{{ (avail_mem_mib | float) < 5500.0 }}"
@@ -116,13 +153,14 @@
 
 - name: Determine overall memory status
   set_fact:
-    memory_status: "{{ 'CRITICAL' if (virt_critical | bool or avail_mem_critical | bool) else 'OK' }}"
+    memory_status: "{{ 'CRITICAL' if (virt_critical | bool or configd_res_critical | bool or avail_mem_critical | bool) else 'OK' }}"
 
 - name: Build critical reasons list
   set_fact:
     critical_reasons: >-
       {% set reasons = [] %}
       {% if virt_critical | bool %}{% if reasons.append('pan_task VIRT (' + pan_task_virt + ') >= 144G') %}{% endif %}{% endif %}
+      {% if configd_res_critical | bool %}{% if reasons.append('configd RES (' + configd_res + ') > 4.5G') %}{% endif %}{% endif %}
       {% if avail_mem_critical | bool %}{% if reasons.append('Avail Mem (' + avail_mem_mib + ' MiB) < 5500 MiB') %}{% endif %}{% endif %}
       {{ reasons | join('; ') }}
 
@@ -131,6 +169,7 @@
     msg:
       - "Memory Status: {{ memory_status }}"
       - "pan_task VIRT: {{ pan_task_virt }} (threshold: 144G)"
+      - "configd RES: {{ configd_res }} (threshold: 4.5G)"
       - "Avail Mem: {{ avail_mem_mib }} MiB (threshold: 5500 MiB)"
       - "{{ 'Critical reasons: ' + critical_reasons if memory_status == 'CRITICAL' else 'All within normal range' }}"
 
@@ -161,6 +200,7 @@
       ------------------------------------------------------------
       Available Memory:    {{ avail_mem_mib }} MiB
       pan_task VIRT:       {{ pan_task_virt }}
+      configd RES:         {{ configd_res }}
       pan_task processes:  {{ pan_task_count }}
       Status:              {{ memory_status }}
 
@@ -170,6 +210,10 @@
       {% if virt_critical | bool %}
       *** pan_task VIRT has reached or exceeded 144G.
       *** The last time it hit 147G, the firewall crashed (OOM).
+      {% endif %}
+      {% if configd_res_critical | bool %}
+      *** configd RES has exceeded 4.5G.
+      *** This indicates excessive memory consumption by the config daemon.
       {% endif %}
       {% if avail_mem_critical | bool %}
       *** Available memory has dropped below 5500 MiB.
@@ -186,6 +230,7 @@
       ============================================================
       Thresholds:
         - pan_task VIRT >= 144G  (crash point: 147G)
+        - configd RES > 4.5G
         - Avail Mem < 5500 MiB  (normal: ~7400-7500 MiB)
       ============================================================
   run_once: true
