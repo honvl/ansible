@@ -222,13 +222,20 @@
     - name: Write output CSV with NAC results after the MAC column
       shell: |
         {{ ansible_playbook_python | quote }} - <<'PY'
+        import ast
         import csv
         import json
         import os
 
-        header = json.loads(os.environ["CSV_HEADER_JSON"])
-        rows = json.loads(os.environ["CSV_ROWS_JSON"])
-        findings = json.loads(os.environ["FINDINGS_JSON"])
+        def parse_data(raw):
+            try:
+                return json.loads(raw)
+            except (json.JSONDecodeError, ValueError):
+                return ast.literal_eval(raw)
+
+        header = parse_data(os.environ["CSV_HEADER_JSON"])
+        rows = parse_data(os.environ["CSV_ROWS_JSON"])
+        findings = parse_data(os.environ["FINDINGS_JSON"])
         output_path = os.environ["CSV_OUTPUT_PATH"]
         column_number = int(os.environ["CSV_MAC_COLUMN_NUMBER"])
         insert_index = column_number
