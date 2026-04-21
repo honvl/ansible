@@ -1,15 +1,16 @@
 ---
-- name: Load printer MACs from CSV on the control node
-  hosts: localhost
+- name: Check whether MACs are on NACced printer ports
+  hosts: switches
   gather_facts: no
-  connection: local
+  connection: network_cli
 
   vars:
     csv_input_path: "/tmp/printer_macs.csv"
     csv_output_path: "/tmp/printer_macs_nac_results.csv"
     csv_mac_column_number: 4
+    nac_acl_line: "ip access-group ACL-DEFAULT-CLOSED in"
 
-  tasks:
+  pre_tasks:
     - name: Read CSV rows and normalize MACs from column 4
       shell: |
         {{ ansible_playbook_python | quote }} - <<'PY'
@@ -50,11 +51,7 @@
             }
 
         if not os.path.exists(input_path):
-            print(
-                json.dumps(
-                    {"error": f"CSV input file not found: {input_path}"}
-                )
-            )
+            print(json.dumps({"error": f"CSV input file not found: {input_path}"}))
             sys.exit(1)
 
         with open(input_path, newline="", encoding="utf-8-sig") as handle:
@@ -117,26 +114,24 @@
         CSV_MAC_COLUMN_NUMBER: "{{ csv_mac_column_number }}"
       register: csv_input_raw
       changed_when: false
+      run_once: true
+      delegate_to: localhost
 
-    - name: Store parsed CSV data
+    - name: Store parsed CSV data on the control node
       set_fact:
         csv_input_data: "{{ csv_input_raw.stdout | from_json }}"
+      run_once: true
+      delegate_to: localhost
+      delegate_facts: true
 
     - name: Show CSV processing summary
       debug:
         msg:
           - "Input CSV: {{ csv_input_path }}"
           - "Output CSV: {{ csv_output_path }}"
-          - "Rows loaded: {{ csv_input_data.rows | length }}"
-          - "Unique MACs to query: {{ csv_input_data.target_macs | length }}"
-
-- name: Check whether MACs are on NACced printer ports
-  hosts: switches
-  gather_facts: no
-  connection: network_cli
-
-  vars:
-    target_macs: "{{ hostvars['localhost'].csv_input_data.target_macs | default([]) }}"
+          - "Rows loaded: {{ hostvars['localhost'].csv_input_data.rows | length }}"
+          - "Unique MACs to query: {{ hostvars['localhost'].csv_input_data.target_macs | length }}"
+      run_once: true
 
   tasks:
     - name: Initialize per-switch findings
@@ -148,9 +143,9 @@
       cisco.ios.ios_command:
         commands:
           - "show mac address-table address {{ item }}"
-      loop: "{{ target_macs }}"
+      loop: "{{ hostvars['localhost'].csv_input_data.target_macs | default([]) }}"
       register: mac_lookup
-      when: target_macs | length > 0
+      when: hostvars['localhost'].csv_input_data.target_macs | default([]) | length > 0
 
     - name: Parse learned interface for MACs found on this switch
       set_fact:
@@ -177,10 +172,8 @@
               | first
             ) | default('')
           }}
-      loop: "{{ mac_lookup.results }}"
-      when:
-        - mac_lookup is defined
-        - learned_interface | length > 0
+      loop: "{{ mac_lookup.results | default([]) }}"
+      when: learned_interface | length > 0
 
     - name: Mark MACs learned on port-channels as excluded
       set_fact:
@@ -211,37 +204,12 @@
           switch: "{{ item.item.switch }}"
           mac: "{{ item.item.mac }}"
           interface: "{{ item.item.interface }}"
-          nacced: >-
-            {{
-              'yes'
-              if 'ip access-group ACL-DEFAULT-CLOSED in' in item.stdout[0]
-              else 'no'
-            }}
-          reason: >-
-            {{
-              'acl_present'
-              if 'ip access-group ACL-DEFAULT-CLOSED in' in item.stdout[0]
-              else 'acl_absent'
-            }}
+          nacced: "{{ 'yes' if nac_acl_line in item.stdout[0] else 'no' }}"
+          reason: "{{ 'acl_present' if nac_acl_line in item.stdout[0] else 'acl_absent' }}"
       loop: "{{ int_config.results | default([]) }}"
       when: item.skipped is not defined
 
-- name: Merge switch findings back into the CSV
-  hosts: localhost
-  gather_facts: no
-  connection: local
-
-  vars:
-    csv_input_path: "/tmp/printer_macs.csv"
-    csv_output_path: "/tmp/printer_macs_nac_results.csv"
-    csv_mac_column_number: 4
-
-  tasks:
-    - name: Collect findings from all switch hosts
-      set_fact:
-        all_findings: "{{ (all_findings | default([])) + (hostvars[item].switch_mac_findings | default([])) }}"
-      loop: "{{ groups['switches'] | default([]) }}"
-
+  post_tasks:
     - name: Write output CSV with NAC results after the MAC column
       shell: |
         {{ ansible_playbook_python | quote }} - <<'PY'
@@ -344,26 +312,30 @@
                     + columns[insert_index:]
                 )
 
-        print(
-            json.dumps(
-                {
-                    "output_path": output_path,
-                    "rows_written": len(rows),
-                }
-            )
-        )
+        print(json.dumps({"output_path": output_path, "rows_written": len(rows)}))
         PY
       args:
         executable: /bin/sh
       environment:
         CSV_HEADER_JSON: "{{ hostvars['localhost'].csv_input_data.header | to_json }}"
         CSV_ROWS_JSON: "{{ hostvars['localhost'].csv_input_data.rows | to_json }}"
-        FINDINGS_JSON: "{{ all_findings | default([]) | to_json }}"
+        FINDINGS_JSON: >-
+          {{
+            ansible_play_hosts_all
+            | map('extract', hostvars, 'switch_mac_findings')
+            | select('defined')
+            | list
+            | flatten
+            | to_json
+          }}
         CSV_OUTPUT_PATH: "{{ csv_output_path }}"
         CSV_MAC_COLUMN_NUMBER: "{{ csv_mac_column_number }}"
       register: csv_output_raw
       changed_when: true
+      run_once: true
+      delegate_to: localhost
 
     - name: Show output file summary
       debug:
         msg: "{{ (csv_output_raw.stdout | from_json).output_path }}"
+      run_once: true
