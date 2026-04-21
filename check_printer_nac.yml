@@ -1,0 +1,107 @@
+---
+- name: Check whether MACs are on NACced printer ports
+  hosts: switches
+  gather_facts: no
+  connection: network_cli
+
+  vars:
+    target_macs:
+      - "0011.2233.4455"
+      - "00aa.bbcc.ddee"
+      - "00ff.1122.3344"
+
+  tasks:
+    - name: Initialize per-switch results
+      set_fact:
+        mac_nac_results: []
+        final_results: []
+
+    - name: Look up each MAC in MAC table
+      cisco.ios.ios_command:
+        commands:
+          - "show mac address-table address {{ item }}"
+      loop: "{{ target_macs }}"
+      register: mac_lookup
+
+    - name: Parse learned interface
+      set_fact:
+        mac_nac_results: >-
+          {{
+            mac_nac_results + [
+              {
+                'switch': inventory_hostname,
+                'mac': item.item,
+                'interface': (
+                  item.stdout[0]
+                  | regex_search('(?m)^\\s*\\d+\\s+' ~ (item.item | regex_escape) ~ '\\s+\\S+\\s+(\\S+)$', '\\1')
+                  | default('')
+                )
+              }
+            ]
+          }}
+      loop: "{{ mac_lookup.results }}"
+
+    - name: Mark MACs on port-channels as excluded
+      set_fact:
+        final_results: "{{ final_results + [ result_obj ] }}"
+      vars:
+        result_obj:
+          switch: "{{ item.switch }}"
+          mac: "{{ item.mac }}"
+          interface: "{{ item.interface }}"
+          nacced: "excluded"
+          reason: "learned_on_port_channel"
+      loop: "{{ mac_nac_results }}"
+      when:
+        - item.interface | length > 0
+        - item.interface is match('^(Po\\d+|Port-channel\\d+)$')
+
+    - name: Mark MACs not found
+      set_fact:
+        final_results: "{{ final_results + [ result_obj ] }}"
+      vars:
+        result_obj:
+          switch: "{{ item.switch }}"
+          mac: "{{ item.mac }}"
+          interface: "NOT_FOUND"
+          nacced: "unknown"
+          reason: "mac_not_found"
+      loop: "{{ mac_nac_results }}"
+      when: item.interface | length == 0
+
+    - name: Check running config for valid non-port-channel interfaces
+      cisco.ios.ios_command:
+        commands:
+          - "show running-config interface {{ item.interface }}"
+      loop: "{{ mac_nac_results }}"
+      when:
+        - item.interface | length > 0
+        - item.interface is not match('^(Po\\d+|Port-channel\\d+)$')
+      register: int_config
+
+    - name: Build final results with NAC status
+      set_fact:
+        final_results: "{{ final_results + [ result_obj ] }}"
+      vars:
+        result_obj:
+          switch: "{{ item.item.switch }}"
+          mac: "{{ item.item.mac }}"
+          interface: "{{ item.item.interface }}"
+          nacced: >-
+            {{
+              'yes'
+              if 'ip access-group ACL-DEFAULT-CLOSED in' in item.stdout[0]
+              else 'no'
+            }}
+          reason: >-
+            {{
+              'acl_present'
+              if 'ip access-group ACL-DEFAULT-CLOSED in' in item.stdout[0]
+              else 'acl_absent'
+            }}
+      loop: "{{ int_config.results }}"
+      when: item.skipped is not defined
+
+    - name: Show results
+      debug:
+        var: final_results
