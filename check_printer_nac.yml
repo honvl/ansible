@@ -160,13 +160,14 @@
             ]
           }}
       vars:
-        # Extract the data line from MAC table output and get the port
+        # Extract the MAC table entry line and take the last token as the port.
         mac_table_lines: "{{ item.stdout[0].split('\n') | select('match', '^\\s*\\d') | list }}"
         learned_interface: >-
           {{
             (
               mac_table_lines[0]
-              | regex_replace('^\\s*\\d+\\s+\\S+\\s+\\S+\\s+(\\S+)\\s*$', '\\1')
+              | regex_findall('\\S+')
+              | last
             ) if mac_table_lines | length > 0 else ''
           }}
       loop: "{{ mac_lookup.results | default([]) }}"
