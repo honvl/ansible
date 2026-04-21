@@ -160,20 +160,20 @@
             ]
           }}
       vars:
-        # Extract the MAC table entry line and take the last token as the port.
-        mac_table_lines: "{{ item.stdout[0].split('\n') | select('match', '^\\s*\\d') | list }}"
+        # Capture the interface column from the MAC table entry line.
         learned_interface: >-
           {{
             (
-              mac_table_lines[0]
-              | regex_findall('\\S+')
-              | last
-            ) if mac_table_lines | length > 0 else ''
+              item.stdout
+              | default([])
+              | first
+              | default('')
+              | regex_findall('(?m)^\\s*\\d+\\s+\\S+\\s+\\S+\\s+(\\S+)\\s*$')
+              | first
+            ) | default('', true)
           }}
       loop: "{{ mac_lookup.results | default([]) }}"
-      when: 
-        - mac_table_lines | length > 0
-        - learned_interface | length > 0
+      when: learned_interface | default('') | length > 0
 
     - name: Mark MACs learned on port-channels as excluded
       set_fact:
