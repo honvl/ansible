@@ -1,20 +1,148 @@
 ---
+- name: Load printer MACs from CSV on the control node
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars:
+    csv_input_path: "/tmp/printer_macs.csv"
+    csv_output_path: "/tmp/printer_macs_nac_results.csv"
+    csv_mac_column_number: 4
+
+  tasks:
+    - name: Read CSV rows and normalize MACs from column 4
+      shell: |
+        {{ ansible_playbook_python | quote }} - <<'PY'
+        import csv
+        import json
+        import os
+        import re
+        import sys
+
+        input_path = os.environ["CSV_INPUT_PATH"]
+        column_number = int(os.environ["CSV_MAC_COLUMN_NUMBER"])
+        column_index = column_number - 1
+
+        def normalize_mac(value):
+            raw = (value or "").strip()
+            if not raw:
+                return {
+                    "normalized": "",
+                    "reason": "empty_mac",
+                    "valid": False,
+                }
+
+            hex_only = re.sub(r"[^0-9A-Fa-f]", "", raw)
+            if len(hex_only) != 12:
+                return {
+                    "normalized": "",
+                    "reason": "invalid_mac_format",
+                    "valid": False,
+                }
+
+            normalized = ".".join(
+                [hex_only[0:4], hex_only[4:8], hex_only[8:12]]
+            ).lower()
+            return {
+                "normalized": normalized,
+                "reason": "",
+                "valid": True,
+            }
+
+        if not os.path.exists(input_path):
+            print(
+                json.dumps(
+                    {"error": f"CSV input file not found: {input_path}"}
+                )
+            )
+            sys.exit(1)
+
+        with open(input_path, newline="", encoding="utf-8-sig") as handle:
+            reader = csv.reader(handle)
+
+            try:
+                header = next(reader)
+            except StopIteration:
+                print(json.dumps({"error": "CSV input file is empty"}))
+                sys.exit(1)
+
+            if len(header) <= column_index:
+                print(
+                    json.dumps(
+                        {
+                            "error": (
+                                f"CSV has {len(header)} columns, "
+                                f"but column {column_number} was requested"
+                            )
+                        }
+                    )
+                )
+                sys.exit(1)
+
+            rows = []
+            target_macs = []
+            seen = set()
+
+            for row_number, row in enumerate(reader, start=2):
+                mac_value = row[column_index] if len(row) > column_index else ""
+                normalized = normalize_mac(mac_value)
+
+                rows.append(
+                    {
+                        "columns": row,
+                        "mac": normalized["normalized"],
+                        "mac_lookup_reason": normalized["reason"],
+                        "row_number": row_number,
+                    }
+                )
+
+                if normalized["valid"] and normalized["normalized"] not in seen:
+                    seen.add(normalized["normalized"])
+                    target_macs.append(normalized["normalized"])
+
+        print(
+            json.dumps(
+                {
+                    "header": header,
+                    "rows": rows,
+                    "target_macs": target_macs,
+                }
+            )
+        )
+        PY
+      args:
+        executable: /bin/sh
+      environment:
+        CSV_INPUT_PATH: "{{ csv_input_path }}"
+        CSV_MAC_COLUMN_NUMBER: "{{ csv_mac_column_number }}"
+      register: csv_input_raw
+      changed_when: false
+
+    - name: Store parsed CSV data
+      set_fact:
+        csv_input_data: "{{ csv_input_raw.stdout | from_json }}"
+
+    - name: Show CSV processing summary
+      debug:
+        msg:
+          - "Input CSV: {{ csv_input_path }}"
+          - "Output CSV: {{ csv_output_path }}"
+          - "Rows loaded: {{ csv_input_data.rows | length }}"
+          - "Unique MACs to query: {{ csv_input_data.target_macs | length }}"
+
 - name: Check whether MACs are on NACced printer ports
   hosts: switches
   gather_facts: no
   connection: network_cli
 
   vars:
-    target_macs:
-      - "0011.2233.4455"
-      - "00aa.bbcc.ddee"
-      - "00ff.1122.3344"
+    target_macs: "{{ hostvars['localhost'].csv_input_data.target_macs | default([]) }}"
 
   tasks:
-    - name: Initialize per-switch results
+    - name: Initialize per-switch findings
       set_fact:
-        mac_nac_results: []
-        final_results: []
+        mac_interface_results: []
+        switch_mac_findings: []
 
     - name: Look up each MAC in MAC table
       cisco.ios.ios_command:
@@ -22,28 +150,41 @@
           - "show mac address-table address {{ item }}"
       loop: "{{ target_macs }}"
       register: mac_lookup
+      when: target_macs | length > 0
 
-    - name: Parse learned interface
+    - name: Parse learned interface for MACs found on this switch
       set_fact:
-        mac_nac_results: >-
+        mac_interface_results: >-
           {{
-            mac_nac_results + [
+            mac_interface_results + [
               {
                 'switch': inventory_hostname,
                 'mac': item.item,
-                'interface': (
-                  item.stdout[0]
-                  | regex_search('(?m)^\\s*\\d+\\s+' ~ (item.item | regex_escape) ~ '\\s+\\S+\\s+(\\S+)$', '\\1')
-                  | default('')
-                )
+                'interface': learned_interface
               }
             ]
           }}
+      vars:
+        learned_interface: >-
+          {{
+            (
+              item.stdout[0]
+              | regex_findall(
+                  '(?m)^\\s*\\d+\\s+'
+                  ~ (item.item | regex_escape)
+                  ~ '\\s+\\S+\\s+(\\S+)$'
+                )
+              | first
+            ) | default('')
+          }}
       loop: "{{ mac_lookup.results }}"
+      when:
+        - mac_lookup is defined
+        - learned_interface | length > 0
 
-    - name: Mark MACs on port-channels as excluded
+    - name: Mark MACs learned on port-channels as excluded
       set_fact:
-        final_results: "{{ final_results + [ result_obj ] }}"
+        switch_mac_findings: "{{ switch_mac_findings + [ result_obj ] }}"
       vars:
         result_obj:
           switch: "{{ item.switch }}"
@@ -51,37 +192,20 @@
           interface: "{{ item.interface }}"
           nacced: "excluded"
           reason: "learned_on_port_channel"
-      loop: "{{ mac_nac_results }}"
-      when:
-        - item.interface | length > 0
-        - item.interface is match('^(Po\\d+|Port-channel\\d+)$')
-
-    - name: Mark MACs not found
-      set_fact:
-        final_results: "{{ final_results + [ result_obj ] }}"
-      vars:
-        result_obj:
-          switch: "{{ item.switch }}"
-          mac: "{{ item.mac }}"
-          interface: "NOT_FOUND"
-          nacced: "unknown"
-          reason: "mac_not_found"
-      loop: "{{ mac_nac_results }}"
-      when: item.interface | length == 0
+      loop: "{{ mac_interface_results }}"
+      when: item.interface is match('^(Po\\d+|Port-channel\\d+)$')
 
     - name: Check running config for valid non-port-channel interfaces
       cisco.ios.ios_command:
         commands:
           - "show running-config interface {{ item.interface }}"
-      loop: "{{ mac_nac_results }}"
-      when:
-        - item.interface | length > 0
-        - item.interface is not match('^(Po\\d+|Port-channel\\d+)$')
+      loop: "{{ mac_interface_results }}"
+      when: item.interface is not match('^(Po\\d+|Port-channel\\d+)$')
       register: int_config
 
-    - name: Build final results with NAC status
+    - name: Build NAC findings for access interfaces
       set_fact:
-        final_results: "{{ final_results + [ result_obj ] }}"
+        switch_mac_findings: "{{ switch_mac_findings + [ result_obj ] }}"
       vars:
         result_obj:
           switch: "{{ item.item.switch }}"
@@ -99,9 +223,147 @@
               if 'ip access-group ACL-DEFAULT-CLOSED in' in item.stdout[0]
               else 'acl_absent'
             }}
-      loop: "{{ int_config.results }}"
+      loop: "{{ int_config.results | default([]) }}"
       when: item.skipped is not defined
 
-    - name: Show results
+- name: Merge switch findings back into the CSV
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars:
+    csv_input_path: "/tmp/printer_macs.csv"
+    csv_output_path: "/tmp/printer_macs_nac_results.csv"
+    csv_mac_column_number: 4
+
+  tasks:
+    - name: Collect findings from all switch hosts
+      set_fact:
+        all_findings: "{{ (all_findings | default([])) + (hostvars[item].switch_mac_findings | default([])) }}"
+      loop: "{{ groups['switches'] | default([]) }}"
+
+    - name: Write output CSV with NAC results after the MAC column
+      shell: |
+        {{ ansible_playbook_python | quote }} - <<'PY'
+        import csv
+        import json
+        import os
+
+        header = json.loads(os.environ["CSV_HEADER_JSON"])
+        rows = json.loads(os.environ["CSV_ROWS_JSON"])
+        findings = json.loads(os.environ["FINDINGS_JSON"])
+        output_path = os.environ["CSV_OUTPUT_PATH"]
+        column_number = int(os.environ["CSV_MAC_COLUMN_NUMBER"])
+        insert_index = column_number
+
+        result_headers = ["switch", "interface", "nacced", "reason"]
+
+        def unique_preserve(values):
+            seen = set()
+            output = []
+            for value in values:
+                if value and value not in seen:
+                    seen.add(value)
+                    output.append(value)
+            return output
+
+        findings_by_mac = {}
+        for item in findings:
+            findings_by_mac.setdefault(item.get("mac", ""), []).append(item)
+
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+
+        with open(output_path, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(
+                header[:insert_index] + result_headers + header[insert_index:]
+            )
+
+            for row in rows:
+                columns = row.get("columns", [])
+                mac = row.get("mac", "")
+                lookup_reason = row.get("mac_lookup_reason", "")
+
+                if lookup_reason == "empty_mac":
+                    result = {
+                        "switch": "",
+                        "interface": "",
+                        "nacced": "unknown",
+                        "reason": "empty_mac",
+                    }
+                elif lookup_reason == "invalid_mac_format":
+                    result = {
+                        "switch": "",
+                        "interface": "",
+                        "nacced": "unknown",
+                        "reason": "invalid_mac_format",
+                    }
+                else:
+                    matches = findings_by_mac.get(mac, [])
+                    if matches:
+                        result = {
+                            "switch": "; ".join(
+                                unique_preserve(
+                                    [item.get("switch", "") for item in matches]
+                                )
+                            ),
+                            "interface": "; ".join(
+                                unique_preserve(
+                                    [item.get("interface", "") for item in matches]
+                                )
+                            ),
+                            "nacced": "; ".join(
+                                unique_preserve(
+                                    [item.get("nacced", "") for item in matches]
+                                )
+                            ),
+                            "reason": "; ".join(
+                                unique_preserve(
+                                    [item.get("reason", "") for item in matches]
+                                )
+                            ),
+                        }
+                    else:
+                        result = {
+                            "switch": "",
+                            "interface": "NOT_FOUND",
+                            "nacced": "unknown",
+                            "reason": "mac_not_found",
+                        }
+
+                writer.writerow(
+                    columns[:insert_index]
+                    + [
+                        result["switch"],
+                        result["interface"],
+                        result["nacced"],
+                        result["reason"],
+                    ]
+                    + columns[insert_index:]
+                )
+
+        print(
+            json.dumps(
+                {
+                    "output_path": output_path,
+                    "rows_written": len(rows),
+                }
+            )
+        )
+        PY
+      args:
+        executable: /bin/sh
+      environment:
+        CSV_HEADER_JSON: "{{ hostvars['localhost'].csv_input_data.header | to_json }}"
+        CSV_ROWS_JSON: "{{ hostvars['localhost'].csv_input_data.rows | to_json }}"
+        FINDINGS_JSON: "{{ all_findings | default([]) | to_json }}"
+        CSV_OUTPUT_PATH: "{{ csv_output_path }}"
+        CSV_MAC_COLUMN_NUMBER: "{{ csv_mac_column_number }}"
+      register: csv_output_raw
+      changed_when: true
+
+    - name: Show output file summary
       debug:
-        var: final_results
+        msg: "{{ (csv_output_raw.stdout | from_json).output_path }}"
