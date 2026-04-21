@@ -255,6 +255,13 @@
         for item in findings:
             findings_by_mac.setdefault(item.get("mac", ""), []).append(item)
 
+        # Real interface findings take precedence over port-channel exclusions
+        for mac_key in findings_by_mac:
+            entries = findings_by_mac[mac_key]
+            real = [e for e in entries if e.get("reason") != "learned_on_port_channel"]
+            if real:
+                findings_by_mac[mac_key] = real
+
         output_dir = os.path.dirname(output_path)
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
