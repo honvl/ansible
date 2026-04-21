@@ -169,7 +169,7 @@
               | default([])
               | first
               | default([])
-              | select('match', '^\\s*\\d+\\s+\\S+\\s+\\S+\\s+\\S+\\s*$')
+              | select('match', '^\s*\d+\s+\S+\s+\S+\s+\S+\s*$')
               | list
               | first
             ) | default('', true)
@@ -195,14 +195,14 @@
           nacced: "excluded"
           reason: "learned_on_port_channel"
       loop: "{{ mac_interface_results }}"
-      when: item.interface is match('^(Po\\d+|Port-channel\\d+)$')
+      when: item.interface is match('^(Po\d+|Port-channel\d+)$')
 
     - name: Check running config for valid non-port-channel interfaces
       cisco.ios.ios_command:
         commands:
           - "show running-config interface {{ item.interface }}"
       loop: "{{ mac_interface_results }}"
-      when: item.interface is not match('^(Po\\d+|Port-channel\\d+)$')
+      when: item.interface is not match('^(Po\d+|Port-channel\d+)$')
       register: int_config
 
     - name: Build NAC findings for access interfaces
