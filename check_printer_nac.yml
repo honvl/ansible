@@ -219,6 +219,27 @@
       when: item.skipped is not defined
 
   post_tasks:
+    - name: Write data files for CSV generation
+      copy:
+        content: "{{ item.data | to_json }}"
+        dest: "{{ item.dest }}"
+      loop:
+        - dest: /tmp/.nac_header.json
+          data: "{{ hostvars['localhost'].csv_input_data.header }}"
+        - dest: /tmp/.nac_rows.json
+          data: "{{ hostvars['localhost'].csv_input_data.rows }}"
+        - dest: /tmp/.nac_findings.json
+          data: >-
+            {{
+              ansible_play_hosts_all
+              | map('extract', hostvars, 'switch_mac_findings')
+              | select('defined')
+              | list
+              | flatten
+            }}
+      run_once: true
+      delegate_to: localhost
+
     - name: Write output CSV with NAC results after the MAC column
       shell: |
         {{ ansible_playbook_python | quote }} - <<'PY'
@@ -227,15 +248,17 @@
         import json
         import os
 
-        def parse_data(raw):
+        def parse_file(path):
+            with open(path, "r", encoding="utf-8") as f:
+                raw = f.read()
             try:
                 return json.loads(raw)
             except (json.JSONDecodeError, ValueError):
                 return ast.literal_eval(raw)
 
-        header = parse_data(os.environ["CSV_HEADER_JSON"])
-        rows = parse_data(os.environ["CSV_ROWS_JSON"])
-        findings = parse_data(os.environ["FINDINGS_JSON"])
+        header = parse_file("/tmp/.nac_header.json")
+        rows = parse_file("/tmp/.nac_rows.json")
+        findings = parse_file("/tmp/.nac_findings.json")
         output_path = os.environ["CSV_OUTPUT_PATH"]
         column_number = int(os.environ["CSV_MAC_COLUMN_NUMBER"])
         insert_index = column_number
@@ -340,17 +363,6 @@
       args:
         executable: /bin/sh
       environment:
-        CSV_HEADER_JSON: "{{ hostvars['localhost'].csv_input_data.header | to_json }}"
-        CSV_ROWS_JSON: "{{ hostvars['localhost'].csv_input_data.rows | to_json }}"
-        FINDINGS_JSON: >-
-          {{
-            ansible_play_hosts_all
-            | map('extract', hostvars, 'switch_mac_findings')
-            | select('defined')
-            | list
-            | flatten
-            | to_json
-          }}
         CSV_OUTPUT_PATH: "{{ csv_output_path }}"
         CSV_MAC_COLUMN_NUMBER: "{{ csv_mac_column_number }}"
       register: csv_output_raw
