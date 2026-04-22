@@ -169,7 +169,7 @@
               | default([])
               | first
               | default([])
-              | select('match', '^\s*\d+\s+\S+\s+\S+\s+\S+\s*$')
+              | select('match', '^\s*\d+\s+\S+\s+\S+\s+\S+')
               | list
               | first
             ) | default('', true)
