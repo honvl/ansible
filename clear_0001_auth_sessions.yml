@@ -39,8 +39,6 @@
 
     - name: Clear matching authentication sessions
       cisco.ios.ios_command:
-        commands:
-          - "{{ auth_session_clear_command }} {{ item }}"
-      loop: "{{ auth_session_matching_macs }}"
+        commands: "{{ auth_session_matching_macs | map('regex_replace', '^(.*)$', auth_session_clear_command ~ ' \\1') | list }}"
       changed_when: true
       when: auth_session_matching_macs | length > 0
