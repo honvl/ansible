@@ -1,0 +1,46 @@
+---
+- name: Clear Cisco authentication sessions for 0001 MAC addresses
+  hosts: "{{ target_hosts | default('switches') }}"
+  gather_facts: false
+  connection: network_cli
+
+  vars:
+    auth_session_show_command: "show authentication sessions"
+    auth_session_clear_command: "clear authentication sessions mac"
+    auth_session_mac_prefix: "0001"
+    auth_session_mac_regex: "(?i)\\b{{ auth_session_mac_prefix }}\\.[0-9a-f]{4}\\.[0-9a-f]{4}\\b"
+
+  tasks:
+    - name: Read authentication sessions table
+      cisco.ios.ios_command:
+        commands:
+          - "{{ auth_session_show_command }}"
+      register: auth_sessions_show
+      changed_when: false
+
+    - name: Parse matching authentication session MACs
+      set_fact:
+        auth_session_matching_macs: >-
+          {{
+            auth_sessions_show.stdout[0]
+            | default('')
+            | regex_findall(auth_session_mac_regex)
+            | map('lower')
+            | unique
+            | sort
+            | list
+          }}
+
+    - name: Report matching authentication sessions
+      debug:
+        msg: >-
+          Found {{ auth_session_matching_macs | length }} matching session(s):
+          {{ auth_session_matching_macs | join(', ') if auth_session_matching_macs | length > 0 else 'none' }}
+
+    - name: Clear matching authentication sessions
+      cisco.ios.ios_command:
+        commands:
+          - "{{ auth_session_clear_command }} {{ item }}"
+      loop: "{{ auth_session_matching_macs }}"
+      changed_when: true
+      when: auth_session_matching_macs | length > 0
