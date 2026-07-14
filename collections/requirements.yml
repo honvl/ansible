@@ -4,7 +4,19 @@ collections:
     version: 2.9.0
 
   - name: cisco.ios
-    version: 4.6.0
+    version: 5.3.0
+
+  # cisco.ios 5.3.0 is the newest release whose own compatibility metadata
+  # supports Ansible >=2.9.10. Version 6.0.0 raises that floor to 2.14.0.
+  # Pin its transitive dependencies too so Galaxy cannot select newer lines
+  # that no longer support Tower 3.8.6's Ansible 2.9 / Python 3.6 runtime.
+  - name: ansible.netcommon
+    version: 2.5.1
+
+  # ansible.netcommon 2.5.1 allows any ansible.utils >=2.0.0. Pin the last
+  # tested line here instead of resolving a release that requires newer Core.
+  - name: ansible.utils
+    version: 2.5.2
 
 
 

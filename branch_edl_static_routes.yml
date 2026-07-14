@@ -1,0 +1,335 @@
+---
+- name: Reconcile branch internet-bypass static routes from external feeds
+  hosts: "{{ target_hosts | default('switches') }}"
+  gather_facts: false
+  connection: network_cli
+
+  vars:
+    _branch_bypass_default_sources:
+      - name: zoom_meetings_ipv4
+        url: https://saasedl.paloaltonetworks.com/feeds/zoom/zoom-meetings/ipv4
+      - name: zoom_phone_ipv4
+        url: https://saasedl.paloaltonetworks.com/feeds/zoom/zoom-phone/ipv4
+
+  pre_tasks:
+    - name: Select the common branch bypass sources
+      ansible.builtin.set_fact:
+        _branch_bypass_effective_sources: >-
+          {{ branch_bypass_sources | default(_branch_bypass_default_sources) }}
+      run_once: true
+      delegate_to: localhost
+      delegate_facts: true
+      tags: branch_bypass_resolve
+
+    - name: Validate sources and collect feed URLs
+      ansible.builtin.set_fact:
+        _branch_bypass_feed_urls: >-
+          {{
+            hostvars['localhost']._branch_bypass_effective_sources
+            | branch_bypass_source_urls
+          }}
+      run_once: true
+      delegate_to: localhost
+      delegate_facts: true
+      tags: branch_bypass_resolve
+
+    - name: Locate the controller Certifi CA bundle when available
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - -m
+          - certifi
+      register: _branch_bypass_certifi
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      when:
+        - branch_bypass_ca_path is not defined
+        - hostvars['localhost']._branch_bypass_feed_urls | length > 0
+      run_once: true
+      delegate_to: localhost
+      tags: branch_bypass_resolve
+
+    - name: Select the controller CA bundle
+      ansible.builtin.set_fact:
+        _branch_bypass_effective_ca_path: >-
+          {{
+            branch_bypass_ca_path
+            | default((_branch_bypass_certifi.stdout | default('') | trim))
+          }}
+      run_once: true
+      delegate_to: localhost
+      delegate_facts: true
+      tags: branch_bypass_resolve
+
+    - name: Download external IPv4 feeds once on the controller
+      ansible.builtin.uri:
+        url: "{{ item }}"
+        method: GET
+        return_content: true
+        status_code: 200
+        timeout: "{{ branch_bypass_feed_timeout | default(30) | int }}"
+        validate_certs: true
+        headers:
+          Accept: text/plain
+      environment: >-
+        {{
+          {
+            'SSL_CERT_FILE': hostvars['localhost']._branch_bypass_effective_ca_path
+          }
+          if hostvars['localhost']._branch_bypass_effective_ca_path | length > 0
+          else {}
+        }}
+      loop: "{{ hostvars['localhost']._branch_bypass_feed_urls }}"
+      loop_control:
+        label: "{{ item }}"
+      register: _branch_bypass_feed_downloads
+      until: _branch_bypass_feed_downloads.status | default(0) == 200
+      retries: "{{ branch_bypass_feed_retries | default(3) | int }}"
+      delay: "{{ branch_bypass_feed_retry_delay | default(2) | int }}"
+      check_mode: false
+      run_once: true
+      delegate_to: localhost
+      tags: branch_bypass_resolve
+
+    - name: Index downloaded feed content by URL
+      ansible.builtin.set_fact:
+        _branch_bypass_feed_contents: >-
+          {{
+            (_branch_bypass_feed_downloads.results | default([]))
+            | branch_bypass_feed_contents
+          }}
+      run_once: true
+      delegate_to: localhost
+      delegate_facts: true
+      tags: branch_bypass_resolve
+
+    - name: Validate and collapse the combined IPv4 prefix list
+      ansible.builtin.set_fact:
+        _branch_bypass_prefixes: >-
+          {{
+            hostvars['localhost']._branch_bypass_effective_sources
+            | branch_bypass_resolve_prefixes(
+                feed_contents=hostvars['localhost']._branch_bypass_feed_contents,
+                minimum_prefix_length=(branch_bypass_minimum_prefix_length | default(8) | int),
+                maximum_prefix_count=(branch_bypass_maximum_prefix_count | default(5000) | int),
+                require_global=(branch_bypass_require_global_prefixes | default(true) | bool)
+              )
+          }}
+      run_once: true
+      delegate_to: localhost
+      delegate_facts: true
+      tags: branch_bypass_resolve
+
+    - name: Report the resolved source snapshot
+      ansible.builtin.debug:
+        msg: >-
+          Resolved {{ hostvars['localhost']._branch_bypass_prefixes | length }}
+          unique/collapsed IPv4 prefixes from
+          {{ hostvars['localhost']._branch_bypass_effective_sources | length }} source(s);
+          SHA-256 {{
+            (hostvars['localhost']._branch_bypass_prefixes | join('\n'))
+            | hash('sha256')
+          }}.
+      run_once: true
+      delegate_to: localhost
+      tags: branch_bypass_resolve
+
+    - name: Validate this branch's required route inputs
+      ansible.builtin.assert:
+        that:
+          - branch_bypass_firewall_next_hop is defined
+          - hostvars['localhost']._branch_bypass_prefixes | length > 0
+          - >-
+            (branch_bypass_sources | default(_branch_bypass_default_sources))
+            == hostvars['localhost']._branch_bypass_effective_sources
+        fail_msg: >-
+          Define branch_bypass_firewall_next_hop for {{ inventory_hostname }} in
+          inventory or host_vars. The resolved prefix list must not be empty, and
+          all hosts in one invocation must use the same branch_bypass_sources.
+      delegate_to: localhost
+      tags: branch_bypass_resolve
+
+  tasks:
+    - name: Gather the exact current Cisco static-route lines
+      cisco.ios.ios_command:
+        commands:
+          - show running-config | include ^ip route
+      register: _branch_bypass_routes_before
+      changed_when: false
+
+    - name: Build a route reconciliation plan
+      ansible.builtin.set_fact:
+        _branch_bypass_plan_before: >-
+          {{
+            (_branch_bypass_routes_before.stdout[0] | default(''))
+            | branch_bypass_route_plan(
+                prefixes=hostvars['localhost']._branch_bypass_prefixes,
+                next_hop=branch_bypass_firewall_next_hop,
+                route_name=(branch_bypass_route_name | default('ANS_BRANCH_BYPASS')),
+                route_tag=(branch_bypass_route_tag | default(424242) | int),
+                vrf=(branch_bypass_vrf | default(none)),
+                allow_destination_overlap=(branch_bypass_allow_destination_overlap | default(false) | bool)
+              )
+          }}
+
+    - name: Refuse ambiguous ownership or unmanaged destination collisions
+      ansible.builtin.assert:
+        that:
+          - _branch_bypass_plan_before.collisions | length == 0
+        fail_msg: >-
+          No routes were changed on {{ inventory_hostname }} because ownership or
+          destination collisions were found:
+          {{ _branch_bypass_plan_before.collisions | join('; ') }}
+
+    - name: Enforce the stale-route removal guardrail
+      ansible.builtin.assert:
+        that:
+          - >-
+            not (branch_bypass_prune_stale_routes | default(true) | bool)
+            or (_branch_bypass_plan_before.stale_count | int)
+               <= (branch_bypass_max_prune | default(100) | int)
+            or (branch_bypass_allow_large_prune | default(false) | bool)
+        fail_msg: >-
+          Refusing to remove {{ _branch_bypass_plan_before.stale_count }} managed
+          routes on {{ inventory_hostname }}; the branch_bypass_max_prune limit is
+          {{ branch_bypass_max_prune | default(100) }}. Review the plan, then raise
+          the limit or set branch_bypass_allow_large_prune=true for this run.
+
+    - name: Report this branch's reconciliation plan
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} owns
+          {{ _branch_bypass_plan_before.current_owned_count }} route(s), needs
+          {{ _branch_bypass_plan_before.missing_count }} addition(s), and has
+          {{ _branch_bypass_plan_before.stale_count }} stale route(s)
+          {{ 'to prune' if (branch_bypass_prune_stale_routes | default(true) | bool)
+             else '(pruning disabled)' }}.
+
+    - name: Add missing managed branch bypass routes
+      cisco.ios.ios_static_routes:
+        config: "{{ _branch_bypass_plan_before.missing_config }}"
+        state: merged
+      register: _branch_bypass_merge
+      when: _branch_bypass_plan_before.missing_count | int > 0
+
+    - name: Re-gather exact route lines immediately before any stale removal
+      cisco.ios.ios_command:
+        commands:
+          - show running-config | include ^ip route
+      register: _branch_bypass_routes_before_delete
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - branch_bypass_prune_stale_routes | default(true) | bool
+        - _branch_bypass_plan_before.stale_count | int > 0
+
+    - name: Rebuild the stale-removal plan from the fresh route snapshot
+      ansible.builtin.set_fact:
+        _branch_bypass_delete_plan: >-
+          {{
+            (_branch_bypass_routes_before_delete.stdout[0] | default(''))
+            | branch_bypass_route_plan(
+                prefixes=hostvars['localhost']._branch_bypass_prefixes,
+                next_hop=branch_bypass_firewall_next_hop,
+                route_name=(branch_bypass_route_name | default('ANS_BRANCH_BYPASS')),
+                route_tag=(branch_bypass_route_tag | default(424242) | int),
+                vrf=(branch_bypass_vrf | default(none)),
+                allow_destination_overlap=(branch_bypass_allow_destination_overlap | default(false) | bool)
+              )
+          }}
+      when:
+        - not ansible_check_mode
+        - branch_bypass_prune_stale_routes | default(true) | bool
+        - _branch_bypass_plan_before.stale_count | int > 0
+
+    - name: Use the preview plan when no fresh deletion snapshot is required
+      ansible.builtin.set_fact:
+        _branch_bypass_delete_plan: "{{ _branch_bypass_plan_before }}"
+      when: >-
+        ansible_check_mode
+        or not (branch_bypass_prune_stale_routes | default(true) | bool)
+        or (_branch_bypass_plan_before.stale_count | int == 0)
+
+    - name: Revalidate ownership and additions before removing stale routes
+      ansible.builtin.assert:
+        that:
+          - _branch_bypass_delete_plan.collisions | length == 0
+          - ansible_check_mode or (_branch_bypass_delete_plan.missing_count | int == 0)
+          - >-
+            (_branch_bypass_delete_plan.stale_count | int)
+            <= (branch_bypass_max_prune | default(100) | int)
+            or (branch_bypass_allow_large_prune | default(false) | bool)
+        fail_msg: >-
+          Refusing stale-route deletion on {{ inventory_hostname }} after the
+          fresh pre-delete check. Missing desired routes:
+          {{ _branch_bypass_delete_plan.missing_routes | join(', ') }}.
+          Collisions: {{ _branch_bypass_delete_plan.collisions | join('; ') }}.
+          Stale count: {{ _branch_bypass_delete_plan.stale_count }}.
+      when:
+        - branch_bypass_prune_stale_routes | default(true) | bool
+        - _branch_bypass_plan_before.stale_count | int > 0
+
+    - name: Remove only the exact freshly revalidated stale route lines
+      cisco.ios.ios_config:
+        lines: "{{ _branch_bypass_delete_plan.delete_commands }}"
+        match: none
+      register: _branch_bypass_delete
+      when:
+        - branch_bypass_prune_stale_routes | default(true) | bool
+        - _branch_bypass_delete_plan.stale_count | int > 0
+
+    - name: Record whether this branch was changed
+      ansible.builtin.set_fact:
+        _branch_bypass_routes_changed: >-
+          {{
+            (_branch_bypass_merge.changed | default(false) | bool)
+            or (_branch_bypass_delete.changed | default(false) | bool)
+          }}
+
+    - name: Gather the final exact static-route lines for verification
+      cisco.ios.ios_command:
+        commands:
+          - show running-config | include ^ip route
+      register: _branch_bypass_routes_after
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Build the post-change verification plan
+      ansible.builtin.set_fact:
+        _branch_bypass_verification_plan: >-
+          {{
+            (_branch_bypass_routes_after.stdout[0] | default(''))
+            | branch_bypass_route_plan(
+                prefixes=hostvars['localhost']._branch_bypass_prefixes,
+                next_hop=branch_bypass_firewall_next_hop,
+                route_name=(branch_bypass_route_name | default('ANS_BRANCH_BYPASS')),
+                route_tag=(branch_bypass_route_tag | default(424242) | int),
+                vrf=(branch_bypass_vrf | default(none)),
+                allow_destination_overlap=(branch_bypass_allow_destination_overlap | default(false) | bool)
+              )
+          }}
+      when: not ansible_check_mode
+
+    - name: Verify the final managed route state
+      ansible.builtin.assert:
+        that:
+          - _branch_bypass_verification_plan.collisions | length == 0
+          - _branch_bypass_verification_plan.missing_count | int == 0
+          - >-
+            not (branch_bypass_prune_stale_routes | default(true) | bool)
+            or (_branch_bypass_verification_plan.stale_count | int == 0)
+        fail_msg: >-
+          Managed route verification failed on {{ inventory_hostname }}.
+          Missing: {{ _branch_bypass_verification_plan.missing_routes | join(', ') }}.
+          Stale: {{ _branch_bypass_verification_plan.stale_routes | join(', ') }}.
+          Collisions: {{ _branch_bypass_verification_plan.collisions | join('; ') }}.
+      when: not ansible_check_mode
+
+    - name: Save the verified running configuration when explicitly enabled
+      cisco.ios.ios_config:
+        save_when: always
+      when:
+        - not ansible_check_mode
+        - branch_bypass_save_config | default(false) | bool
+        - _branch_bypass_routes_changed | bool
