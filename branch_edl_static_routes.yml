@@ -21,12 +21,17 @@
       delegate_facts: true
       tags: branch_bypass_resolve
 
-    - name: Validate sources and collect feed URLs
+    - name: Validate sources and collect controller-side inputs
       ansible.builtin.set_fact:
         _branch_bypass_feed_urls: >-
           {{
             hostvars['localhost']._branch_bypass_effective_sources
             | branch_bypass_source_urls
+          }}
+        _branch_bypass_domains: >-
+          {{
+            hostvars['localhost']._branch_bypass_effective_sources
+            | branch_bypass_source_domains
           }}
       run_once: true
       delegate_to: localhost
@@ -104,6 +109,36 @@
       delegate_facts: true
       tags: branch_bypass_resolve
 
+    - name: Resolve configured domains to IPv4 on the controller
+      branch_bypass_dns:
+        domains: "{{ hostvars['localhost']._branch_bypass_domains }}"
+        maximum_address_count: >-
+          {{ branch_bypass_maximum_prefix_count | default(5000) | int }}
+      vars:
+        # An explicit RHEL 7 localhost inventory entry may otherwise select Python 2.7.
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      register: _branch_bypass_dns_resolution
+      until: >-
+        not (_branch_bypass_dns_resolution.failed | default(false) | bool)
+      retries: "{{ branch_bypass_dns_retries | default(3) | int }}"
+      delay: "{{ branch_bypass_dns_retry_delay | default(2) | int }}"
+      check_mode: false
+      when: hostvars['localhost']._branch_bypass_domains | length > 0
+      run_once: true
+      delegate_to: localhost
+      tags: branch_bypass_resolve
+
+    - name: Store the complete controller DNS snapshot
+      ansible.builtin.set_fact:
+        _branch_bypass_domain_addresses: >-
+          {{ _branch_bypass_dns_resolution.answers | default({}) }}
+        _branch_bypass_domain_address_count: >-
+          {{ _branch_bypass_dns_resolution.address_count | default(0) | int }}
+      run_once: true
+      delegate_to: localhost
+      delegate_facts: true
+      tags: branch_bypass_resolve
+
     - name: Validate and collapse the combined IPv4 prefix list
       ansible.builtin.set_fact:
         _branch_bypass_prefixes: >-
@@ -111,6 +146,7 @@
             hostvars['localhost']._branch_bypass_effective_sources
             | branch_bypass_resolve_prefixes(
                 feed_contents=hostvars['localhost']._branch_bypass_feed_contents,
+                domain_addresses=hostvars['localhost']._branch_bypass_domain_addresses,
                 minimum_prefix_length=(branch_bypass_minimum_prefix_length | default(8) | int),
                 maximum_prefix_count=(branch_bypass_maximum_prefix_count | default(5000) | int),
                 require_global=(branch_bypass_require_global_prefixes | default(true) | bool)
@@ -126,7 +162,9 @@
         msg: >-
           Resolved {{ hostvars['localhost']._branch_bypass_prefixes | length }}
           unique/collapsed IPv4 prefixes from
-          {{ hostvars['localhost']._branch_bypass_effective_sources | length }} source(s);
+          {{ hostvars['localhost']._branch_bypass_effective_sources | length }} source(s),
+          including {{ hostvars['localhost']._branch_bypass_domains | length }} DNS name(s)
+          with {{ hostvars['localhost']._branch_bypass_domain_address_count }} IPv4 answer(s);
           SHA-256 {{
             (hostvars['localhost']._branch_bypass_prefixes | join('\n'))
             | hash('sha256')

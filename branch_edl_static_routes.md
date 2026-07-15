@@ -7,7 +7,7 @@ Networks' public [Zoom Meetings IPv4][zoom-meetings] and [Zoom Phone IPv4][zoom-
 feeds.
 
 The playbook is generic: replace or extend `branch_bypass_sources` to handle other
-line-oriented IPv4 feeds and custom application prefixes.
+line-oriented IPv4 feeds, custom application prefixes, and application DNS names.
 
 This playbook targets the `master` branch runtime: Ansible Tower 3.8.6,
 Ansible 2.9.27, and Python 3.6. The collection requirements pin
@@ -41,7 +41,7 @@ privilege-escalation variables are intentionally omitted from this example.
 The default target group is `switches`. Override it with, for example,
 `-e target_hosts=branch_routers`.
 
-## Add feeds or custom application prefixes
+## Add feeds, domains, or custom application prefixes
 
 Define the source list as a common variable (for example, in `group_vars/all.yml`
 or an extra-vars file). Every target in one playbook invocation must use the same
@@ -59,6 +59,10 @@ branch_bypass_sources:
     prefixes:
       - 1.1.1.0/24
       - 8.8.4.4
+  - name: custom_application_domains
+    domains:
+      - api.example.com
+      - media.example.com
 ```
 
 Feeds are expected to contain one IPv4 CIDR (or single IPv4 address) per line.
@@ -66,6 +70,32 @@ Blank lines and `#` comments are ignored. All entries are validated, deduplicate
 and safely collapsed with Python's standard `ipaddress` library. A failed download,
 empty feed, malformed entry, or validation error stops the run before any router is
 changed.
+
+Each value under `domains` must be an exact, fully qualified DNS name. The
+playbook resolves all names once through the Tower controller's system resolver,
+follows normal CNAME resolution, and converts every returned IPv4 address to a
+`/32` before the combined list's normal deduplication and safe collapsing.
+Duplicate A records are removed. IPv6 answers are intentionally ignored because
+this playbook manages IPv4 routes. A DNS failure or a name with no IPv4 answer
+fails the complete controller-side snapshot before any router is read or changed;
+it never turns a lookup failure into an empty desired list that could prune routes.
+DNS retries default to three with a two-second delay:
+
+```yaml
+branch_bypass_dns_retries: 3
+branch_bypass_dns_retry_delay: 2
+```
+
+DNS-derived routes are refreshed on every job. New A records use the same batched
+merge, and previously owned DNS-derived routes become stale and are subject to the
+same exact-line prune guardrails. This is most appropriate for stable application
+hostnames. The controller's answer can differ from what a branch sees with split
+DNS, GeoDNS, or CDN steering, and the system resolver does not expose TTL
+information here; the job schedule is the refresh cadence. Prefer a vendor EDL for
+highly dynamic or geographically steered applications. Wildcards do not discover
+subdomains and are rejected. Individual lookup timeouts are controlled by the
+Tower host's resolver configuration; the playbook-level retry settings apply after
+a lookup attempt returns an error.
 
 Public prefixes are required by default. For a deliberately private custom
 destination, set `branch_bypass_require_global_prefixes: false`. The broadest
@@ -75,6 +105,14 @@ accepted route defaults to `/8`, and the raw/collapsed input cap defaults to 5,0
 branch_bypass_minimum_prefix_length: 8
 branch_bypass_maximum_prefix_count: 5000
 ```
+
+The controller-side Python is repository-local. Ansible automatically discovers
+the validation filters in `filter_plugins/branch_bypass.py` and the one-shot DNS
+module in `library/branch_bypass_dns.py` beside the playbook. Both use only Python
+3.6 standard-library functionality plus Ansible itself; there is no DNS Python
+package or separate installation step. The delegated DNS task explicitly uses
+Tower's `ansible_playbook_python`, even if the reused inventory contains its own
+`localhost` entry whose default interpreter is an older system Python.
 
 ## Ownership and stale routes
 
@@ -112,8 +150,8 @@ create ECMP and should be used only when that is deliberate. It still refuses an
 unmanaged route with the same destination **and** next hop, because merging that
 record could adopt the manual route into this ownership domain.
 
-Stale pruning is enabled so feed changes are reconciled. More than 100 stale owned
-routes in one run trips a guardrail:
+Stale pruning is enabled so feed, prefix, and DNS-answer changes are reconciled.
+More than 100 stale owned routes in one run trips a guardrail:
 
 ```yaml
 branch_bypass_prune_stale_routes: true

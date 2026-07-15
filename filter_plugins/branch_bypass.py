@@ -8,6 +8,9 @@ from ansible.errors import AnsibleFilterError
 
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 _SAFE_VRF = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+_SAFE_DOMAIN_LABEL = re.compile(
+    r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$"
+)
 
 
 def _fail(message):
@@ -27,6 +30,47 @@ def _source_name(source, index):
     return name
 
 
+def _canonical_domain(value, source_name, location):
+    if not isinstance(value, str):
+        _fail(f"{source_name} {location} must be a string")
+
+    domain = value.strip()
+    if domain.endswith("."):
+        domain = domain[:-1]
+    if not domain:
+        _fail(f"{source_name} {location} is empty")
+
+    try:
+        domain = domain.encode("idna").decode("ascii").lower()
+    except UnicodeError as exc:
+        _fail(f"{source_name} {location} is not a valid DNS name: {value!r} ({exc})")
+
+    try:
+        ip_address(domain)
+    except ValueError:
+        pass
+    else:
+        _fail(
+            f"{source_name} {location} must be a DNS name, not an IP address; "
+            "put literal addresses under prefixes"
+        )
+
+    labels = domain.split(".")
+    if len(labels) < 2:
+        _fail(
+            f"{source_name} {location} must be a fully qualified DNS name "
+            "with at least two labels"
+        )
+    if (
+        len(domain) > 253
+        or labels[-1].isdigit()
+        or any(not _SAFE_DOMAIN_LABEL.fullmatch(label) for label in labels)
+    ):
+        _fail(f"{source_name} {location} is not a valid DNS name: {value!r}")
+
+    return domain
+
+
 def branch_bypass_source_urls(sources):
     """Validate the source skeleton and return unique feed URLs in order."""
     if not isinstance(sources, list) or not sources:
@@ -42,8 +86,9 @@ def branch_bypass_source_urls(sources):
 
         url = source.get("url")
         prefixes = source.get("prefixes")
-        if url is None and prefixes is None:
-            _fail(f"source {name} must define url and/or prefixes")
+        domains = source.get("domains")
+        if url is None and prefixes is None and domains is None:
+            _fail(f"source {name} must define url, prefixes, and/or domains")
         if url is not None:
             if not isinstance(url, str) or not url.startswith("https://"):
                 _fail(f"source {name} url must be an https:// URL")
@@ -51,8 +96,29 @@ def branch_bypass_source_urls(sources):
                 urls.append(url)
         if prefixes is not None and not isinstance(prefixes, list):
             _fail(f"source {name} prefixes must be a list")
+        if domains is not None:
+            if not isinstance(domains, list) or not domains:
+                _fail(f"source {name} domains must be a non-empty list")
+            for domain_index, domain in enumerate(domains):
+                _canonical_domain(domain, name, f"domains[{domain_index}]")
 
     return urls
+
+
+def branch_bypass_source_domains(sources):
+    """Validate the source skeleton and return unique canonical DNS names."""
+    branch_bypass_source_urls(sources)
+
+    domains = []
+    seen = set()
+    for index, source in enumerate(sources):
+        name = _source_name(source, index)
+        for domain_index, value in enumerate(source.get("domains") or []):
+            domain = _canonical_domain(value, name, f"domains[{domain_index}]")
+            if domain not in seen:
+                seen.add(domain)
+                domains.append(domain)
+    return domains
 
 
 def branch_bypass_feed_contents(download_results):
@@ -125,14 +191,20 @@ def _feed_lines(content, source_name):
 def branch_bypass_resolve_prefixes(
     sources,
     feed_contents,
+    domain_addresses=None,
     minimum_prefix_length=8,
     maximum_prefix_count=5000,
     require_global=True,
 ):
     """Validate, combine, deduplicate, and collapse all configured IPv4 sources."""
     urls = branch_bypass_source_urls(sources)
+    domains = branch_bypass_source_domains(sources)
     if not isinstance(feed_contents, dict):
         _fail("downloaded feed contents must be a URL-to-content dictionary")
+    if domain_addresses is None:
+        domain_addresses = {}
+    if not isinstance(domain_addresses, dict):
+        _fail("resolved domain addresses must be a DNS-name-to-address-list dictionary")
 
     try:
         minimum_prefix_length = int(minimum_prefix_length)
@@ -148,6 +220,9 @@ def branch_bypass_resolve_prefixes(
     missing_urls = [url for url in urls if url not in feed_contents]
     if missing_urls:
         _fail(f"missing downloaded content for: {', '.join(missing_urls)}")
+    missing_domains = [domain for domain in domains if domain not in domain_addresses]
+    if missing_domains:
+        _fail(f"missing DNS answers for: {', '.join(missing_domains)}")
 
     parsed = []
     for index, source in enumerate(sources):
@@ -163,6 +238,19 @@ def branch_bypass_resolve_prefixes(
             source_values.extend(
                 (value, f"prefixes[{prefix_index}]")
                 for prefix_index, value in enumerate(configured_prefixes)
+            )
+
+        for domain_index, value in enumerate(source.get("domains") or []):
+            domain = _canonical_domain(value, name, f"domains[{domain_index}]")
+            addresses = domain_addresses[domain]
+            if not isinstance(addresses, list) or not addresses:
+                _fail(f"DNS answer for {domain} must be a non-empty IPv4 address list")
+            source_values.extend(
+                (
+                    address,
+                    f"domains[{domain_index}] ({domain}) answer[{address_index}]",
+                )
+                for address_index, address in enumerate(addresses)
             )
 
         if not source_values:
@@ -550,6 +638,7 @@ class FilterModule:
     def filters(self):
         return {
             "branch_bypass_source_urls": branch_bypass_source_urls,
+            "branch_bypass_source_domains": branch_bypass_source_domains,
             "branch_bypass_feed_contents": branch_bypass_feed_contents,
             "branch_bypass_resolve_prefixes": branch_bypass_resolve_prefixes,
             "branch_bypass_route_plan": branch_bypass_route_plan,

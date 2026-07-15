@@ -13,8 +13,109 @@ assert SPEC is not None and SPEC.loader is not None
 PLUGIN = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PLUGIN)
 
+DNS_MODULE_PATH = Path(__file__).parents[1] / "library" / "branch_bypass_dns.py"
+DNS_SPEC = importlib.util.spec_from_file_location("branch_bypass_dns", DNS_MODULE_PATH)
+assert DNS_SPEC is not None and DNS_SPEC.loader is not None
+DNS_MODULE = importlib.util.module_from_spec(DNS_SPEC)
+DNS_SPEC.loader.exec_module(DNS_MODULE)
+
 
 class SourceResolutionTests(unittest.TestCase):
+    def test_collects_canonical_unique_domains(self):
+        sources = [
+            {
+                "name": "application",
+                "domains": [
+                    "API.Example.COM.",
+                    "api.example.com",
+                    "media.example.com",
+                ],
+            }
+        ]
+
+        self.assertEqual(
+            PLUGIN.branch_bypass_source_domains(sources),
+            ["api.example.com", "media.example.com"],
+        )
+
+    def test_rejects_unsafe_or_non_fully_qualified_domains(self):
+        invalid_domains = [
+            "*.example.com",
+            "https://api.example.com",
+            "8.8.8.8",
+            "8.8.8",
+            "singlelabel",
+            "bad_name.example.com",
+            "api.example.com/path",
+        ]
+        for value in invalid_domains:
+            with self.subTest(value=value):
+                with self.assertRaises(AnsibleFilterError):
+                    PLUGIN.branch_bypass_source_domains(
+                        [{"name": "invalid", "domains": [value]}]
+                    )
+
+    def test_rejects_empty_or_non_list_domains(self):
+        with self.assertRaisesRegex(AnsibleFilterError, "non-empty list"):
+            PLUGIN.branch_bypass_source_domains(
+                [{"name": "empty", "domains": []}]
+            )
+        with self.assertRaisesRegex(AnsibleFilterError, "non-empty list"):
+            PLUGIN.branch_bypass_source_domains(
+                [{"name": "string", "domains": "api.example.com"}]
+            )
+
+    def test_dns_module_deduplicates_and_numerically_sorts_ipv4_answers(self):
+        def resolver(domain, service, family, socket_type):
+            self.assertEqual(domain, "api.example.com")
+            self.assertIsNone(service)
+            self.assertEqual(family, DNS_MODULE.socket.AF_INET)
+            self.assertEqual(socket_type, DNS_MODULE.socket.SOCK_STREAM)
+            return [
+                (family, socket_type, 6, "", ("9.9.9.9", 0)),
+                (family, socket_type, 6, "", ("1.1.1.1", 0)),
+                (family, socket_type, 6, "", ("9.9.9.9", 0)),
+                (family, socket_type, 6, "", ("8.8.8.8", 0)),
+            ]
+
+        answers, address_count = DNS_MODULE.resolve_domains(
+            ["api.example.com"], 10, resolver=resolver
+        )
+
+        self.assertEqual(
+            answers,
+            {"api.example.com": ["1.1.1.1", "8.8.8.8", "9.9.9.9"]},
+        )
+        self.assertEqual(address_count, 3)
+
+    def test_dns_module_fails_the_snapshot_on_lookup_or_empty_answer(self):
+        def failed_resolver(_domain, _service, _family, _socket_type):
+            raise DNS_MODULE.socket.gaierror(-2, "name not known")
+
+        with self.assertRaisesRegex(ValueError, "DNS lookup failed for missing.example"):
+            DNS_MODULE.resolve_domains(
+                ["missing.example"], 10, resolver=failed_resolver
+            )
+
+        with self.assertRaisesRegex(ValueError, "no IPv4 addresses"):
+            DNS_MODULE.resolve_domains(
+                ["empty.example"],
+                10,
+                resolver=lambda _domain, _service, _family, _socket_type: [],
+            )
+
+    def test_dns_module_enforces_answer_count_limit(self):
+        records = [
+            (DNS_MODULE.socket.AF_INET, DNS_MODULE.socket.SOCK_STREAM, 6, "", ("1.1.1.1", 0)),
+            (DNS_MODULE.socket.AF_INET, DNS_MODULE.socket.SOCK_STREAM, 6, "", ("8.8.8.8", 0)),
+        ]
+        with self.assertRaisesRegex(ValueError, "maximum_prefix_count"):
+            DNS_MODULE.resolve_domains(
+                ["api.example.com"],
+                1,
+                resolver=lambda _domain, _service, _family, _socket_type: records,
+            )
+
     def test_indexes_uri_results_without_losing_loop_entries(self):
         results = [
             {"item": "https://example.test/a", "content": "1.1.1.0/24\n"},
@@ -45,6 +146,64 @@ class SourceResolutionTests(unittest.TestCase):
             resolved,
             ["1.1.1.0/24", "8.8.4.0/24", "8.8.8.0/23", "9.9.9.9/32"],
         )
+
+    def test_combines_domain_answers_with_feeds_and_prefixes(self):
+        sources = [
+            {
+                "name": "mixed",
+                "url": "https://example.test/feed",
+                "prefixes": ["9.9.9.9"],
+                "domains": ["API.Example.COM."],
+            }
+        ]
+        resolved = PLUGIN.branch_bypass_resolve_prefixes(
+            sources,
+            {"https://example.test/feed": "1.1.1.0/24\n"},
+            domain_addresses={
+                "api.example.com": ["8.8.8.8", "8.8.4.4", "8.8.8.8"]
+            },
+        )
+
+        self.assertEqual(
+            resolved,
+            ["1.1.1.0/24", "8.8.4.4/32", "8.8.8.8/32", "9.9.9.9/32"],
+        )
+
+    def test_rejects_missing_empty_or_private_domain_answers(self):
+        sources = [{"name": "application", "domains": ["api.example.com"]}]
+
+        with self.assertRaisesRegex(AnsibleFilterError, "missing DNS answers"):
+            PLUGIN.branch_bypass_resolve_prefixes(sources, {})
+        with self.assertRaisesRegex(AnsibleFilterError, "non-empty IPv4 address list"):
+            PLUGIN.branch_bypass_resolve_prefixes(
+                sources, {}, domain_addresses={"api.example.com": []}
+            )
+        with self.assertRaisesRegex(AnsibleFilterError, "non-public"):
+            PLUGIN.branch_bypass_resolve_prefixes(
+                sources, {}, domain_addresses={"api.example.com": ["10.0.0.10"]}
+            )
+
+        self.assertEqual(
+            PLUGIN.branch_bypass_resolve_prefixes(
+                sources,
+                {},
+                domain_addresses={"api.example.com": ["10.0.0.10"]},
+                require_global=False,
+            ),
+            ["10.0.0.10/32"],
+        )
+
+    def test_domain_answers_count_toward_the_raw_prefix_limit(self):
+        sources = [{"name": "application", "domains": ["api.example.com"]}]
+        with self.assertRaisesRegex(AnsibleFilterError, "maximum_prefix_count"):
+            PLUGIN.branch_bypass_resolve_prefixes(
+                sources,
+                {},
+                domain_addresses={
+                    "api.example.com": ["1.1.1.1", "8.8.8.8", "9.9.9.9"]
+                },
+                maximum_prefix_count=2,
+            )
 
     def test_rejects_empty_feed(self):
         sources = [{"name": "empty", "url": "https://example.test/empty"}]
@@ -259,6 +418,34 @@ class RoutePlanTests(unittest.TestCase):
                 route_name=self.marker,
                 route_tag=self.tag,
             )
+
+    def test_changed_dns_answer_prunes_only_the_old_owned_host_route(self):
+        running_config = "\n".join(
+            [
+                "ip route 8.8.8.8 255.255.255.255 10.0.0.1 tag 424242 "
+                "name ANS_BRANCH_BYPASS",
+                "ip route 192.0.2.0 255.255.255.0 10.0.0.2 name MANUAL",
+            ]
+        )
+
+        plan = PLUGIN.branch_bypass_route_plan(
+            running_config,
+            prefixes=["8.8.4.4/32"],
+            next_hop="10.0.0.1",
+            route_name=self.marker,
+            route_tag=self.tag,
+        )
+
+        self.assertEqual(plan["missing_count"], 1)
+        self.assertEqual(plan["stale_count"], 1)
+        self.assertEqual(
+            plan["delete_commands"],
+            [
+                "no ip route 8.8.8.8 255.255.255.255 10.0.0.1 tag 424242 "
+                "name ANS_BRANCH_BYPASS"
+            ],
+        )
+        self.assertNotIn("MANUAL", str(plan["delete_commands"]))
 
 
 if __name__ == "__main__":
