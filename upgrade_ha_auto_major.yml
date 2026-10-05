@@ -70,6 +70,10 @@
       loop:
         - "{{ primary_ip_address }}"
         - "{{ secondary_ip_address }}"
+      register: unsuspend
+      retries: 3
+      delay: 10
+      until: unsuspend is not failed
 
     - name: Determine which firewall is active in HA
       paloaltonetworks.panos.panos_active_in_ha:
@@ -81,6 +85,9 @@
         - "{{ primary_ip_address }}"
         - "{{ secondary_ip_address }}"
       register: ha_status
+      retries: 3
+      delay: 10
+      until: ha_status is not failed
 
     - name: Set active/passive devices dynamically
       set_fact:
