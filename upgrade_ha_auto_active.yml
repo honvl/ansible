@@ -16,15 +16,33 @@
         cmd: 'save config to {{ backup_filename }}'
       when: backup_config|bool
 
+    # Download to both firewalls in parallel instead of sync_to_peer: faster, and each firewall checks for its own copy.
     - name: Download target PAN-OS version
       paloaltonetworks.panos.panos_software:
-        ip_address: '{{ primary }}'
+        ip_address: '{{ item }}'
         username: "{{ username | default(omit) }}"
         password: "{{ password | default(omit) }}"
         version: '{{ version }}'
         download: true
-        sync_to_peer: true
+        sync_to_peer: false
         install: false
+      loop:
+        - '{{ primary }}'
+        - '{{ secondary }}'
+      async: 7200
+      poll: 0
+      register: download_jobs
+
+    - name: Wait for target PAN-OS version downloads
+      ansible.builtin.async_status:
+        jid: '{{ item.ansible_job_id }}'
+      loop: '{{ download_jobs.results }}'
+      loop_control:
+        label: '{{ item.item }}'
+      register: download_status
+      until: download_status.finished
+      retries: 240
+      delay: 30
 
     - name: Suspend primary device
       paloaltonetworks.panos.panos_op:

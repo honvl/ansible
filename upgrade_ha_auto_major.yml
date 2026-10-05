@@ -47,8 +47,6 @@
     #                     upgrading the secondary firewall.
     pause_mid_upgrade: False
 
-    sync_to_peer: True
-
   tasks:
 
     - name: Unsuspend devices
@@ -85,16 +83,35 @@
         secondary: "{{ (ha_status.results | selectattr('response.active', 'equalto', false) | list | first).item }}"
       when: ha_status.results | length > 0
 
-    - name: Download PAN-OS version
+    # Download to both firewalls in parallel instead of sync_to_peer: faster, and each firewall checks for its own copy.
+    - name: Download base PAN-OS version
       paloaltonetworks.panos.panos_software:
-        ip_address: '{{ primary }}'
+        ip_address: '{{ item }}'
         username: "{{ username | default(omit) }}"
         password: "{{ password | default(omit) }}"
         version: '{{ base_version }}'
-        sync_to_peer: '{{ sync_to_peer }}'
+        sync_to_peer: false
         download: true
         install: false
         restart: false
+      loop:
+        - '{{ primary }}'
+        - '{{ secondary }}'
+      async: 7200
+      poll: 0
+      register: base_download_jobs
+      when: ha_status.results[0].response.active
+
+    - name: Wait for base PAN-OS version downloads
+      ansible.builtin.async_status:
+        jid: '{{ item.ansible_job_id }}'
+      loop: '{{ base_download_jobs.results }}'
+      loop_control:
+        label: '{{ item.item }}'
+      register: base_download_status
+      until: base_download_status.finished
+      retries: 240
+      delay: 30
       when: ha_status.results[0].response.active
 
     - name: Run tasks with dynamic nodes
