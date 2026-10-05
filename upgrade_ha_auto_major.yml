@@ -49,16 +49,6 @@
 
     sync_to_peer: True
 
-    primary:
-      ip_address: '{{ primary_ip_address }}'
-      username: '{{ username | default(omit) }}'
-      password: '{{ password | default(omit) }}'
-
-    secondary:
-      ip_address: '{{ secondary_ip_address }}'
-      username: '{{ username | default(omit) }}'
-      password: '{{ password | default(omit) }}'
-
   tasks:
 
     - name: Unsuspend devices
@@ -94,16 +84,18 @@
         primary: "{{ (ha_status.results | selectattr('response.active', 'equalto', true) | list | first).item }}"
         secondary: "{{ (ha_status.results | selectattr('response.active', 'equalto', false) | list | first).item }}"
       when: ha_status.results | length > 0
-      ignore_errors: true
 
     - name: Download PAN-OS version
       paloaltonetworks.panos.panos_software:
-        provider: '{{ primary }}'
+        ip_address: '{{ primary }}'
+        username: "{{ username | default(omit) }}"
+        password: "{{ password | default(omit) }}"
         version: '{{ base_version }}'
         sync_to_peer: '{{ sync_to_peer }}'
         download: true
         install: false
         restart: false
+      when: ha_status.results[0].response.active
 
     - name: Run tasks with dynamic nodes
       ansible.builtin.include_tasks: upgrade_ha_auto_active.yml
