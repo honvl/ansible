@@ -1,0 +1,305 @@
+---
+# ios_thousandeyes_upgrade.yml - Upgrade the ThousandEyes Enterprise Agent container on a Catalyst 9K switch
+#
+# Description
+# ===========
+#
+# Upgrades the ThousandEyes Enterprise Agent running as an IOS-XE app-hosting (IOx) application to the
+# package you give it.  Uses the in-place `app-hosting upgrade` command, so the existing app config
+# (account token, VLAN/IP settings) stays in the running-config and the same agent comes back after the upgrade.
+#
+# ThousandEyes only hands out the .tar from its dashboard (Cloud & Enterprise Agents > Agent Settings > Add New
+# Enterprise Agent > Cisco Application Hosting), so there is no URL to discover "latest" from.  Download the newest
+# package once and put the file on the Tower server; this playbook does the rest, including getting it onto the
+# switch.
+#
+# How the package gets to the switch
+# ==================================
+#
+# Tower pushes the file to the switch's flash: over SCP (the same way Cisco Prime does), using the SSH connection
+# to the switch that the rest of the playbook already uses.  Nothing connects back to the Tower server, so no
+# firewall rule is needed there (e.g. Guardicore), and nothing is installed or left running on it.
+#
+# The switch's SCP server (`ip scp server enable`) is turned on for the transfer only if it was off, and turned
+# off again afterwards, even if the transfer fails.  If the package is already on the switch's flash it is not
+# copied again.
+#
+# Flow
+# ====
+#
+#   1. Confirm the app exists and read its current package/version/state.
+#   2. Skip if it already runs the requested package; refuse to downgrade unless told to.
+#   3. Push the package to flash: over SCP (if not already there) and check its MD5.
+#   4. app-hosting upgrade, wait for it to finish, activate/start if the upgrade left the app stopped.
+#   5. Fail unless the app ends up RUNNING on the new package.
+#
+# Switches are done one at a time (serial: 1).
+#
+# Modules Used
+# ============
+#
+# cisco.ios.ios_command, cisco.ios.ios_config, ansible.netcommon.net_put
+#
+# Requirements
+# ============
+#
+#   - The package file is on the Tower host at an absolute path that jobs can see.  Tower hides most of the
+#     filesystem from jobs; use a directory listed under Settings > Jobs > Paths to expose to isolated jobs.
+#   - The `scp` Python package in the Tower virtualenv that runs the job (net_put fails with "Required library scp
+#     is not installed" without it).  Check with `python -c "import scp"` in that virtualenv.
+#   - A switch account allowed to use SCP (privilege 15 / exec authorization if AAA is in use).
+#
+# Usage
+# =====
+#
+# Required variables (at least one):
+#
+#   te_package_src:  Absolute path of the package on the Tower host.
+#   te_package_file: Filename already on the switch's flash:, to skip the copy.  Defaults to the filename of
+#                    te_package_src.
+#
+# Optional variables:
+#
+#   te_package_md5:  MD5 of the package (shown on the ThousandEyes download page).  Strongly recommended.
+#   te_app_id:       app-hosting appid on the switches.                  Default: te
+#   te_storage:      Where the package is stored on the switch.          Default: flash:
+#   te_allow_downgrade: Allow installing an older version than the one running.   Default: false
+#
+# Example:
+#
+#  $ ansible-playbook -i inventory ios_thousandeyes_upgrade.yml --limit sw-access-01 \
+#      -e "te_package_src=/srv/thousandeyes/thousandeyes-enterprise-agent-5.0.0.cisco.tar" \
+#      -e "te_package_md5=0123456789abcdef0123456789abcdef"
+#
+# In Tower, create a job template for this playbook (master branch project) with the IOS inventory and machine
+# credential.  Add a Survey with te_package_src and te_package_md5 questions, or tick Prompt on Launch for Variables.
+
+- name: Upgrade ThousandEyes Enterprise Agent container
+  hosts: all
+  gather_facts: false
+  connection: network_cli
+  serial: 1
+
+  vars:
+    te_app_id: te
+    te_storage: 'flash:'
+    te_package_md5: ''
+
+    # Copying and MD5-checking a 200MB-1.2GB package takes much longer than the 30s default.  net_put also uses
+    # this value as its SCP socket timeout.
+    ansible_command_timeout: 1800
+
+    # Derived values.  te_detail is the registered output of `show app-hosting detail`, so these always reflect the
+    # most recent read of the app.  The character classes avoid backslashes so YAML/Jinja escaping can't mangle them.
+    te_pkg_file: "{{ te_package_file if te_package_file is defined else (te_package_src | basename) }}"
+    te_pkg_path: "{{ te_storage }}{{ te_pkg_file }}"
+    te_target_version: "{{ te_pkg_file | regex_findall('[0-9]+(?:[.][0-9]+)+') | first | default('') }}"
+    te_state: "{{ te_detail.stdout[0] | regex_findall('(?m)^State[ ]*:[ ]*([A-Za-z_]+)') | first | default('UNKNOWN') }}"
+    te_cur_version: "{{ te_detail.stdout[0] | regex_findall('(?m)^[ ]*Version[ ]*:[ ]*([A-Za-z0-9._+-]+)') | first | default('') }}"
+    # Path looks like "flash:thousandeyes-enterprise-agent-5.0.0.cisco.tar"; keep only the filename.
+    te_cur_file: "{{ te_detail.stdout[0] | regex_findall('(?m)^[ ]*Path[ ]*:[ ]*([A-Za-z0-9._:/+-]+)') | first | default('') | regex_replace('^.*[:/]', '') }}"
+
+  tasks:
+    - name: Check required variables
+      assert:
+        that:
+          - te_package_src is defined or te_package_file is defined
+        fail_msg: Set te_package_src (path of the package on the Tower host) and/or te_package_file (already on the switch).
+        quiet: true
+
+    - name: Get app-hosting app list
+      cisco.ios.ios_command:
+        commands:
+          - show app-hosting list
+      register: te_list
+
+    - name: Check the ThousandEyes app is installed
+      assert:
+        that:
+          - te_list.stdout[0] is search('(?m)^' ~ (te_app_id | regex_escape) ~ '[ ]')
+        fail_msg: >-
+          App '{{ te_app_id }}' is not installed on {{ inventory_hostname }}. This playbook only upgrades an existing
+          app (check te_app_id against 'show app-hosting list').
+        quiet: true
+
+    - name: Read current app details
+      cisco.ios.ios_command:
+        commands:
+          - "show app-hosting detail appid {{ te_app_id }}"
+      register: te_detail
+
+    - name: Remember what is running now
+      set_fact:
+        te_old_version: "{{ te_cur_version }}"
+        te_old_file: "{{ te_cur_file }}"
+
+    - name: Already on the requested package
+      debug:
+        msg: "{{ inventory_hostname }}: already running {{ te_pkg_file }} (version {{ te_old_version }}, {{ te_state }}) - nothing to do"
+      when: te_old_file == te_pkg_file
+
+    - name: Skip switches that are already up to date
+      meta: end_host
+      when: te_old_file == te_pkg_file
+
+    - name: Refuse to downgrade
+      fail:
+        msg: >-
+          {{ inventory_hostname }} runs version {{ te_old_version }}, newer than {{ te_target_version }} from
+          {{ te_pkg_file }}. Set te_allow_downgrade=true if that is really intended.
+      when:
+        - not (te_allow_downgrade | default(false) | bool)
+        - te_old_version != '' and te_target_version != ''
+        - te_old_version is version(te_target_version, '>')
+
+    - name: List package storage
+      cisco.ios.ios_command:
+        commands:
+          - "dir {{ te_storage }}"
+      register: te_dir
+
+    - name: Fail if the package is not on the switch and no source path was given
+      fail:
+        msg: "{{ te_pkg_file }} is not in {{ te_storage }} on {{ inventory_hostname }} and te_package_src is not set."
+      when:
+        - te_pkg_file not in te_dir.stdout[0]
+        - te_package_src is not defined
+
+    - name: Copy package to the switch
+      when: te_pkg_file not in te_dir.stdout[0]
+      block:
+        # connection: local is set explicitly because the play's network_cli connection would otherwise be
+        # inherited by localhost.
+        - name: Check the package on the Tower host
+          delegate_to: localhost
+          connection: local
+          block:
+            - name: Check the package exists on the Tower host
+              stat:
+                path: "{{ te_package_src }}"
+                follow: true
+              register: te_src
+
+            - name: Fail if the package file can't be found
+              assert:
+                that:
+                  - te_src.stat.exists
+                  - te_src.stat.isreg
+                fail_msg: >-
+                  {{ te_package_src }} is not a readable file on the Tower host. Tower hides most paths from jobs -
+                  check it is under Settings > Jobs > Paths to expose to isolated jobs.
+                quiet: true
+
+        - name: Check whether the switch's SCP server is enabled
+          cisco.ios.ios_command:
+            commands:
+              - show running-config | include ip scp server enable
+          register: te_scp
+
+        # Anchored so a "no ip scp server enable" line is not mistaken for the enabled setting.
+        - name: Note whether we have to enable the SCP server
+          set_fact:
+            te_scp_by_us: "{{ te_scp.stdout[0] is not search('(?m)^ip scp server enable') }}"
+
+        - name: Enable the SCP server on the switch for the transfer
+          cisco.ios.ios_config:
+            lines:
+              - ip scp server enable
+          when: te_scp_by_us | bool
+
+        - name: Push the package to the switch over SCP
+          ansible.netcommon.net_put:
+            src: "{{ te_src.stat.path }}"
+            dest: "{{ te_pkg_path }}"
+            protocol: scp
+            mode: binary
+
+      always:
+        - name: Turn the switch's SCP server back off if we turned it on
+          cisco.ios.ios_config:
+            lines:
+              - no ip scp server enable
+          when: te_scp_by_us | default(false) | bool
+
+    - name: Warn that the package is not being verified
+      debug:
+        msg: te_package_md5 is not set - package integrity is NOT being checked.
+      when: te_package_md5 | length == 0
+
+    - name: Calculate package MD5 on the switch
+      cisco.ios.ios_command:
+        commands:
+          - "verify /md5 {{ te_pkg_path }}"
+      register: te_md5
+      when: te_package_md5 | length > 0
+
+    - name: Check package MD5
+      assert:
+        that:
+          - (te_package_md5 | lower) in (te_md5.stdout[0] | lower)
+        fail_msg: >-
+          MD5 of {{ te_pkg_path }} on {{ inventory_hostname }} does not match {{ te_package_md5 }}. Delete the file
+          from the switch and re-run.
+        quiet: true
+      when: te_package_md5 | length > 0
+
+    - name: Upgrade the app to the new package
+      cisco.ios.ios_command:
+        commands:
+          - "app-hosting upgrade appid {{ te_app_id }} package {{ te_pkg_path }}"
+      changed_when: true
+
+    # The app-hosting upgrade command returns before the upgrade is done, so wait for the app to report the new
+    # package/version in a settled state.
+    - name: Wait for the upgrade to finish
+      cisco.ios.ios_command:
+        commands:
+          - "show app-hosting detail appid {{ te_app_id }}"
+      register: te_detail
+      until:
+        - te_state in ['RUNNING', 'DEPLOYED', 'ACTIVATED', 'STOPPED']
+        - te_cur_file == te_pkg_file or (te_target_version != '' and te_cur_version == te_target_version)
+      retries: 60
+      delay: 10
+
+    # If the upgrade left the app below RUNNING, bring it back up.  Every task that registers te_detail runs
+    # unconditionally: Ansible stores a skipped task's result in its register variable too, which would wipe out
+    # the app output that te_state and the other derived vars are parsed from.
+    - name: Activate the app
+      cisco.ios.ios_command:
+        commands:
+          - "app-hosting activate appid {{ te_app_id }}"
+      changed_when: true
+      when: te_state == 'DEPLOYED'
+
+    - name: Wait for the app to be activated
+      cisco.ios.ios_command:
+        commands:
+          - "show app-hosting detail appid {{ te_app_id }}"
+      register: te_detail
+      until: te_state in ['ACTIVATED', 'STOPPED', 'RUNNING']
+      retries: 30
+      delay: 10
+
+    - name: Start the app
+      cisco.ios.ios_command:
+        commands:
+          - "app-hosting start appid {{ te_app_id }}"
+      changed_when: true
+      when: te_state in ['ACTIVATED', 'STOPPED']
+
+    - name: Wait for the app to be running
+      cisco.ios.ios_command:
+        commands:
+          - "show app-hosting detail appid {{ te_app_id }}"
+      register: te_detail
+      until: te_state == 'RUNNING'
+      retries: 30
+      delay: 10
+
+    - name: Upgrade summary
+      debug:
+        msg: >-
+          {{ inventory_hostname }}: {{ te_app_id }} upgraded from {{ te_old_version | default('?', true) }}
+          ({{ te_old_file | default('?', true) }}) to {{ te_cur_version | default('?', true) }}
+          ({{ te_cur_file | default('?', true) }}), state {{ te_state }}
