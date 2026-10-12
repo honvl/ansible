@@ -49,6 +49,17 @@
 
   tasks:
 
+    # If both addresses name the same firewall, the passive peer is never found and the job dies later with
+    # "No first item, sequence was empty" before anything is upgraded.
+    - name: Check the HA pair addresses
+      assert:
+        that:
+          - primary_ip_address != secondary_ip_address
+        fail_msg: >-
+          primary_ip_address and secondary_ip_address are both {{ primary_ip_address }} for {{ inventory_hostname }}.
+          Fix the inventory so they point to the two different firewalls of the HA pair.
+        quiet: true
+
     - name: Unsuspend devices
       paloaltonetworks.panos.panos_op:
         ip_address: "{{ item }}"
@@ -77,13 +88,62 @@
       delay: 10
       until: ha_status is not failed
 
+    - name: Check that one firewall is active and the other passive
+      assert:
+        that:
+          - ha_status.results | selectattr('response.active', 'equalto', true) | list | length > 0
+          - ha_status.results | selectattr('response.active', 'equalto', false) | list | length > 0
+        fail_msg: >-
+          Expected one active and one passive firewall.
+          Active: {{ ha_status.results | selectattr('response.active', 'equalto', true) | map(attribute='item') | unique | join(', ') or 'none' }}.
+          Passive: {{ ha_status.results | selectattr('response.active', 'equalto', false) | map(attribute='item') | unique | join(', ') or 'none' }}.
+        quiet: true
+
     - name: Set active/passive devices dynamically
       set_fact:
         primary: "{{ (ha_status.results | selectattr('response.active', 'equalto', true) | list | first).item }}"
         secondary: "{{ (ha_status.results | selectattr('response.active', 'equalto', false) | list | first).item }}"
       when: ha_status.results | length > 0
 
-    # Download to both firewalls in parallel instead of sync_to_peer: faster, and each firewall checks for its own copy.
+    # Firewalls already on the target version are skipped, so a rerun after a partial upgrade only finishes the other one.
+    - name: Check current PAN-OS versions
+      when: ha_status.results[0].response.active
+      block:
+        - name: Get current PAN-OS version
+          paloaltonetworks.panos.panos_op:
+            ip_address: "{{ item }}"
+            username: "{{ username | default(omit) }}"
+            password: "{{ password | default(omit) }}"
+            cmd: 'show system info'
+          loop:
+            - "{{ primary }}"
+            - "{{ secondary }}"
+          changed_when: false
+          register: system_info
+          retries: 3
+          delay: 10
+          until: system_info is not failed
+
+        - name: Set current PAN-OS versions
+          ansible.builtin.set_fact:
+            primary_version: "{{ (system_info.results[0].stdout | from_json).response.result.system['sw-version'] }}"
+            secondary_version: "{{ (system_info.results[1].stdout | from_json).response.result.system['sw-version'] }}"
+
+        - name: Set firewalls to upgrade
+          ansible.builtin.set_fact:
+            upgrade_targets: "{{ ([primary] if primary_version != version else []) + ([secondary] if secondary_version != version else []) }}"
+
+        - name: Skip upgrade, both firewalls already on target version
+          ansible.builtin.debug:
+            msg: 'Both firewalls ({{ primary }}, {{ secondary }}) are already running PAN-OS {{ version }}, skipping upgrade.'
+          when: upgrade_targets | length == 0
+
+        - name: End play when both firewalls are already on target version
+          ansible.builtin.meta: end_host
+          when: upgrade_targets | length == 0
+
+    # Download to the firewalls being upgraded in parallel instead of sync_to_peer: faster, and each firewall checks
+    # for its own copy.
     - name: Download base PAN-OS version
       paloaltonetworks.panos.panos_software:
         ip_address: '{{ item }}'
@@ -94,9 +154,7 @@
         download: true
         install: false
         restart: false
-      loop:
-        - '{{ primary }}'
-        - '{{ secondary }}'
+      loop: '{{ upgrade_targets }}'
       async: 7200
       poll: 0
       register: base_download_jobs

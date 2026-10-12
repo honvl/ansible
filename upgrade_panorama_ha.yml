@@ -63,6 +63,41 @@
     major_version_upgrade: false
 
   tasks:
+    # Panoramas already on the target version are skipped, so a rerun after a partial upgrade only finishes the other one.
+    - name: Get current PAN-OS version (primary)
+      paloaltonetworks.panos.panos_op:
+        provider: '{{ primary }}'
+        cmd: 'show system info'
+      changed_when: false
+      register: primary_info
+      retries: 3
+      delay: 10
+      until: primary_info is not failed
+
+    - name: Get current PAN-OS version (secondary)
+      paloaltonetworks.panos.panos_op:
+        provider: '{{ secondary }}'
+        cmd: 'show system info'
+      changed_when: false
+      register: secondary_info
+      retries: 3
+      delay: 10
+      until: secondary_info is not failed
+
+    - name: Set current PAN-OS versions
+      ansible.builtin.set_fact:
+        primary_version: "{{ (primary_info.stdout | from_json).response.result.system['sw-version'] }}"
+        secondary_version: "{{ (secondary_info.stdout | from_json).response.result.system['sw-version'] }}"
+
+    - name: Skip upgrade, both Panoramas already on target version
+      ansible.builtin.debug:
+        msg: 'Both Panoramas ({{ primary.ip_address }}, {{ secondary.ip_address }}) are already running PAN-OS {{ version }}, skipping upgrade.'
+      when: primary_version == version and secondary_version == version
+
+    - name: End play when both Panoramas are already on target version
+      ansible.builtin.meta: end_host
+      when: primary_version == version and secondary_version == version
+
     - name: Backup device config (primary)
       paloaltonetworks.panos.panos_op:
         provider: '{{ primary }}'
@@ -76,106 +111,113 @@
 #        cmd: 'save config to {{ backup_filename }}'
 #      when: backup_config|bool
 
+    # Download on primary and sync to the peer, or straight to whichever Panorama is the only one being upgraded.
     - name: Download target PAN-OS version
       paloaltonetworks.panos.panos_software:
-        provider: '{{ primary }}'
+        provider: '{{ primary if primary_version != version else secondary }}'
         version: '{{ version }}'
         download: true
-        sync_to_peer: true
+        sync_to_peer: '{{ primary_version != version and secondary_version != version }}'
         install: false
 
-    - name: Suspend primary device
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
-        cmd: 'request high-availability state suspend'
+    - name: Upgrade primary
+      when: primary_version != version
+      block:
+        - name: Suspend primary device
+          paloaltonetworks.panos.panos_op:
+            provider: '{{ primary }}'
+            cmd: 'request high-availability state suspend'
 
-    - name: Check that secondary is now active
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ secondary }}'
-        cmd: 'show high-availability state'
-      register: secondary_active
-      retries: 10
-      delay: 30
-      until: (secondary_active.stdout | from_json).response.result["local-info"].state == 'secondary-active' and
-             (secondary_active.stdout | from_json).response.result["peer-info"].state == 'primary-suspended' and
-             (secondary_active.stdout | from_json).response.result["peer-info"]["state-reason"] == 'User requested'
+        - name: Check that secondary is now active
+          paloaltonetworks.panos.panos_op:
+            provider: '{{ secondary }}'
+            cmd: 'show high-availability state'
+          register: secondary_active
+          retries: 10
+          delay: 30
+          until: (secondary_active.stdout | from_json).response.result["local-info"].state == 'secondary-active' and
+                 (secondary_active.stdout | from_json).response.result["peer-info"].state == 'primary-suspended' and
+                 (secondary_active.stdout | from_json).response.result["peer-info"]["state-reason"] == 'User requested'
 
-    - name: Install target PAN-OS version and restart (primary)
-      paloaltonetworks.panos.panos_software:
-        provider: '{{ primary }}'
-        version: '{{ version }}'
-        download: false
-        restart: true
+        - name: Install target PAN-OS version and restart (primary)
+          paloaltonetworks.panos.panos_software:
+            provider: '{{ primary }}'
+            version: '{{ version }}'
+            download: false
+            restart: true
 
-    - name: Pause for restart
-      ansible.builtin.pause:
-        seconds: 30
+        - name: Pause for restart
+          ansible.builtin.pause:
+            seconds: 30
 
-    - name: Check that primary is up and passive
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
-        cmd: 'show high-availability state'
-      register: primary_passive
-      retries: 30
-      delay: 60
-      until: primary_passive is not failed and
-             (primary_passive.stdout | from_json).response.result.enabled == 'yes' and
-             (primary_passive.stdout | from_json).response.result["local-info"].state == 'primary-passive'
-      when: not major_version_upgrade|bool
+        - name: Check that primary is up and passive
+          paloaltonetworks.panos.panos_op:
+            provider: '{{ primary }}'
+            cmd: 'show high-availability state'
+          register: primary_passive
+          retries: 30
+          delay: 60
+          until: primary_passive is not failed and
+                 (primary_passive.stdout | from_json).response.result.enabled == 'yes' and
+                 (primary_passive.stdout | from_json).response.result["local-info"].state == 'primary-passive'
+          when: not major_version_upgrade|bool
 
-    # Special case, Panorama HA doesn't work across major versions like firewalls, so primary will be non-functional.
-    - name: Check that primary is up and non-functional
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
-        cmd: 'show high-availability state'
-      register: primary_nf
-      retries: 30
-      delay: 60
-      until: primary_nf is not failed and
-             (primary_nf.stdout | from_json).response.result.enabled == 'yes' and
-             (primary_nf.stdout | from_json).response.result["local-info"].state == 'primary-non-functional' and
-             (primary_nf.stdout | from_json).response.result["local-info"]["state-reason"] == 'Peer version not compatible'
-      when: major_version_upgrade|bool
+        # Special case, Panorama HA doesn't work across major versions like firewalls, so primary will be non-functional.
+        - name: Check that primary is up and non-functional
+          paloaltonetworks.panos.panos_op:
+            provider: '{{ primary }}'
+            cmd: 'show high-availability state'
+          register: primary_nf
+          retries: 30
+          delay: 60
+          until: primary_nf is not failed and
+                 (primary_nf.stdout | from_json).response.result.enabled == 'yes' and
+                 (primary_nf.stdout | from_json).response.result["local-info"].state == 'primary-non-functional' and
+                 (primary_nf.stdout | from_json).response.result["local-info"]["state-reason"] == 'Peer version not compatible'
+          when: major_version_upgrade|bool
 
-    - name: Pause for verification
-      ansible.builtin.pause:
-        prompt: 'Primary upgrade complete.  Pausing for verification.'
-      when: pause_mid_upgrade
+        - name: Pause for verification
+          ansible.builtin.pause:
+            prompt: 'Primary upgrade complete.  Pausing for verification.'
+          when: pause_mid_upgrade
 
-    - name: Suspend secondary device
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ secondary }}'
-        cmd: 'request high-availability state suspend'
+    - name: Upgrade secondary
+      when: secondary_version != version
+      block:
+        - name: Suspend secondary device
+          paloaltonetworks.panos.panos_op:
+            provider: '{{ secondary }}'
+            cmd: 'request high-availability state suspend'
 
-    - name: Check that primary is now active
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ primary }}'
-        cmd: 'show high-availability state'
-      register: primary_active
-      retries: 10
-      delay: 30
-      until: (primary_active.stdout | from_json).response.result["local-info"].state == 'primary-active' and
-             (primary_active.stdout | from_json).response.result["peer-info"].state == 'secondary-suspended' and
-             (primary_active.stdout | from_json).response.result["peer-info"]["state-reason"] == 'User requested'
+        - name: Check that primary is now active
+          paloaltonetworks.panos.panos_op:
+            provider: '{{ primary }}'
+            cmd: 'show high-availability state'
+          register: primary_active
+          retries: 10
+          delay: 30
+          until: (primary_active.stdout | from_json).response.result["local-info"].state == 'primary-active' and
+                 (primary_active.stdout | from_json).response.result["peer-info"].state == 'secondary-suspended' and
+                 (primary_active.stdout | from_json).response.result["peer-info"]["state-reason"] == 'User requested'
 
-    - name: Install target PAN-OS version and restart (secondary)
-      paloaltonetworks.panos.panos_software:
-        provider: '{{ secondary }}'
-        version: '{{ version }}'
-        download: false
-        restart: true
+        - name: Install target PAN-OS version and restart (secondary)
+          paloaltonetworks.panos.panos_software:
+            provider: '{{ secondary }}'
+            version: '{{ version }}'
+            download: false
+            restart: true
 
-    - name: Pause for restart
-      ansible.builtin.pause:
-        seconds: 30
+        - name: Pause for restart
+          ansible.builtin.pause:
+            seconds: 30
 
-    - name: Check that secondary is up and passive
-      paloaltonetworks.panos.panos_op:
-        provider: '{{ secondary }}'
-        cmd: 'show high-availability state'
-      register: secondary_passive
-      retries: 30
-      delay: 60
-      until: secondary_passive is not failed and
-             (secondary_passive.stdout | from_json).response.result.enabled == 'yes' and
-             (secondary_passive.stdout | from_json).response.result["local-info"].state == 'secondary-passive'
+        - name: Check that secondary is up and passive
+          paloaltonetworks.panos.panos_op:
+            provider: '{{ secondary }}'
+            cmd: 'show high-availability state'
+          register: secondary_passive
+          retries: 30
+          delay: 60
+          until: secondary_passive is not failed and
+                 (secondary_passive.stdout | from_json).response.result.enabled == 'yes' and
+                 (secondary_passive.stdout | from_json).response.result["local-info"].state == 'secondary-passive'

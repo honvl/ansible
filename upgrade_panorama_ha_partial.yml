@@ -63,6 +63,29 @@
     major_version_upgrade: false
 
   tasks:
+    - name: Get current PAN-OS version (secondary)
+      paloaltonetworks.panos.panos_op:
+        provider: '{{ secondary }}'
+        cmd: 'show system info'
+      changed_when: false
+      register: secondary_info
+      retries: 3
+      delay: 10
+      until: secondary_info is not failed
+
+    - name: Set current PAN-OS version (secondary)
+      ansible.builtin.set_fact:
+        secondary_version: "{{ (secondary_info.stdout | from_json).response.result.system['sw-version'] }}"
+
+    - name: Skip upgrade, secondary already on target version
+      ansible.builtin.debug:
+        msg: 'Secondary Panorama ({{ secondary.ip_address }}) is already running PAN-OS {{ version }}, skipping upgrade.'
+      when: secondary_version == version
+
+    - name: End play when secondary is already on target version
+      ansible.builtin.meta: end_host
+      when: secondary_version == version
+
     - name: Check that primary is up and passive
       paloaltonetworks.panos.panos_op:
         provider: '{{ primary }}'

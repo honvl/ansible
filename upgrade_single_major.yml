@@ -33,9 +33,37 @@
 #  $ ansible-playbook -i inventory upgrade_single_major.yml --extra-vars "target=firewall base_version=9.0.0 target_version=9.0.5"
 #
 
+- hosts: '{{ target | default("firewall") }}'
+  connection: local
+  gather_facts: false
+
+  vars:
+    device:
+      ip_address: '{{ ip_address }}'
+      username: '{{ username | default(omit) }}'
+      password: '{{ password | default(omit) }}'
+      api_key: '{{ api_key | default(omit) }}'
+
+  tasks:
+    - name: Get current PAN-OS version
+      paloaltonetworks.panos.panos_op:
+        provider: '{{ device }}'
+        cmd: 'show system info'
+      changed_when: false
+      register: system_info
+      retries: 3
+      delay: 10
+      until: system_info is not failed
+
+    - name: Set current PAN-OS version
+      ansible.builtin.set_fact:
+        current_version: "{{ (system_info.stdout | from_json).response.result.system['sw-version'] }}"
+
+# Skip the base image download when already on the target version; upgrade_single.yml then ends without upgrading.
 - import_playbook: download_panos_version.yml
   vars:
     version: '{{ base_version }}'
+  when: current_version != target_version
 
 - import_playbook: upgrade_single.yml
   vars:

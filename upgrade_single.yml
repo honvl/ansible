@@ -50,6 +50,29 @@
     backup_filename: 'ansible-backup-{{ ansible_date_time.date }}.xml'
 
   tasks:
+    - name: Get current PAN-OS version
+      paloaltonetworks.panos.panos_op:
+        provider: '{{ device }}'
+        cmd: 'show system info'
+      changed_when: false
+      register: system_info
+      retries: 3
+      delay: 10
+      until: system_info is not failed
+
+    - name: Set current PAN-OS version
+      ansible.builtin.set_fact:
+        current_version: "{{ (system_info.stdout | from_json).response.result.system['sw-version'] }}"
+
+    - name: Skip upgrade, device already on target version
+      ansible.builtin.debug:
+        msg: '{{ inventory_hostname }} is already running PAN-OS {{ version }}, skipping upgrade.'
+      when: current_version == version
+
+    - name: End play when device is already on target version
+      ansible.builtin.meta: end_host
+      when: current_version == version
+
     - name: Backup device config
       paloaltonetworks.panos.panos_op:
         provider: '{{ device }}'

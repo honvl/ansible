@@ -27,6 +27,17 @@
 
   tasks:
 
+    # If both addresses name the same firewall, the passive peer is never found and the job dies later with
+    # "No first item, sequence was empty" before anything is upgraded.
+    - name: Check the HA pair addresses
+      assert:
+        that:
+          - primary_ip_address != secondary_ip_address
+        fail_msg: >-
+          primary_ip_address and secondary_ip_address are both {{ primary_ip_address }} for {{ inventory_hostname }}.
+          Fix the inventory so they point to the two different firewalls of the HA pair.
+        quiet: true
+
     - name: Unsuspend devices
       paloaltonetworks.panos.panos_op:
         ip_address: "{{ item }}"
@@ -54,6 +65,17 @@
       retries: 3
       delay: 10
       until: ha_status is not failed
+
+    - name: Check that one firewall is active and the other passive
+      assert:
+        that:
+          - ha_status.results | selectattr('response.active', 'equalto', true) | list | length > 0
+          - ha_status.results | selectattr('response.active', 'equalto', false) | list | length > 0
+        fail_msg: >-
+          Expected one active and one passive firewall.
+          Active: {{ ha_status.results | selectattr('response.active', 'equalto', true) | map(attribute='item') | unique | join(', ') or 'none' }}.
+          Passive: {{ ha_status.results | selectattr('response.active', 'equalto', false) | map(attribute='item') | unique | join(', ') or 'none' }}.
+        quiet: true
 
     - name: Set active/passive devices dynamically
       set_fact:

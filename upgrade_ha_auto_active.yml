@@ -16,7 +16,8 @@
         cmd: 'save config to {{ backup_filename }}'
       when: backup_config|bool
 
-    # Download to both firewalls in parallel instead of sync_to_peer: faster, and each firewall checks for its own copy.
+    # Download to the firewalls being upgraded in parallel instead of sync_to_peer: faster, and each firewall checks
+    # for its own copy.
     - name: Download target PAN-OS version
       paloaltonetworks.panos.panos_software:
         ip_address: '{{ item }}'
@@ -26,9 +27,7 @@
         download: true
         sync_to_peer: false
         install: false
-      loop:
-        - '{{ primary }}'
-        - '{{ secondary }}'
+      loop: '{{ upgrade_targets }}'
       async: 7200
       poll: 0
       register: download_jobs
@@ -44,143 +43,149 @@
       retries: 240
       delay: 30
 
-    - name: Suspend primary device
-      paloaltonetworks.panos.panos_op:
-        ip_address: '{{ primary }}'
-        username: "{{ username | default(omit) }}"
-        password: "{{ password | default(omit) }}"
-        cmd: 'request high-availability state suspend'
+    - name: Upgrade primary
+      when: primary in upgrade_targets
+      block:
+        - name: Suspend primary device
+          paloaltonetworks.panos.panos_op:
+            ip_address: '{{ primary }}'
+            username: "{{ username | default(omit) }}"
+            password: "{{ password | default(omit) }}"
+            cmd: 'request high-availability state suspend'
 
-    - name: Pause for suspend
-      pause:
-        seconds: 30
+        - name: Pause for suspend
+          pause:
+            seconds: 30
 
-    - name: Check that secondary is now active
-      paloaltonetworks.panos.panos_op:
-        ip_address: '{{ secondary }}'
-        username: "{{ username | default(omit) }}"
-        password: "{{ password | default(omit) }}"
-        cmd: 'show high-availability state'
-      register: secondary_active
-      retries: 10
-      delay: 30
-      until: ( secondary_active.stdout | from_json).response.result.group["local-info"].state == 'active' and
-             ( secondary_active.stdout | from_json).response.result.group["peer-info"].state == 'suspended' and
-             ( secondary_active.stdout | from_json).response.result.group["peer-info"]["state-reason"] == 'User requested' # yamllint disable-line
+        - name: Check that secondary is now active
+          paloaltonetworks.panos.panos_op:
+            ip_address: '{{ secondary }}'
+            username: "{{ username | default(omit) }}"
+            password: "{{ password | default(omit) }}"
+            cmd: 'show high-availability state'
+          register: secondary_active
+          retries: 10
+          delay: 30
+          until: ( secondary_active.stdout | from_json).response.result.group["local-info"].state == 'active' and
+                 ( secondary_active.stdout | from_json).response.result.group["peer-info"].state == 'suspended' and
+                 ( secondary_active.stdout | from_json).response.result.group["peer-info"]["state-reason"] == 'User requested' # yamllint disable-line
 
-    - name: Install target PAN-OS version and restart (primary)
-      paloaltonetworks.panos.panos_software:
-        ip_address: '{{ primary }}'
-        username: "{{ username | default(omit) }}"
-        password: "{{ password | default(omit) }}"
-        version: '{{ version }}'
-        download: false
-        restart: true
-      register: installresult
-      until: installresult is not failed
-      delay: 10
+        - name: Install target PAN-OS version and restart (primary)
+          paloaltonetworks.panos.panos_software:
+            ip_address: '{{ primary }}'
+            username: "{{ username | default(omit) }}"
+            password: "{{ password | default(omit) }}"
+            version: '{{ version }}'
+            download: false
+            restart: true
+          register: installresult
+          until: installresult is not failed
+          delay: 10
 
-    - name: Pause for restart
-      pause:
-        seconds: 30
+        - name: Pause for restart
+          pause:
+            seconds: 30
 
-    - name: Chassis ready (primary)
-      paloaltonetworks.panos.panos_op:
-        ip_address: '{{ primary }}'
-        username: "{{ username | default(omit) }}"
-        password: "{{ password | default(omit) }}"
-        cmd: 'show chassis-ready'
-      changed_when: false
-      register: result
-      until: result is not failed and (result.stdout | from_json).response.result == 'yes'
-      retries: 30
-      delay: 60
+        - name: Chassis ready (primary)
+          paloaltonetworks.panos.panos_op:
+            ip_address: '{{ primary }}'
+            username: "{{ username | default(omit) }}"
+            password: "{{ password | default(omit) }}"
+            cmd: 'show chassis-ready'
+          changed_when: false
+          register: result
+          until: result is not failed and (result.stdout | from_json).response.result == 'yes'
+          retries: 30
+          delay: 60
 
-    - name: State sync check (primary)
-      paloaltonetworks.panos.panos_op:
-        ip_address: '{{ primary }}'
-        username: "{{ username | default(omit) }}"
-        password: "{{ password | default(omit) }}"
-        cmd: 'show high-availability state'
-      register: primary_state_sync
-      retries: 10
-      delay: 30
-      until: >
-        primary_state_sync.stdout is defined and
-        (
-          (primary_state_sync.stdout | from_json).response.result.group["local-info"].state == 'passive' and
-          (primary_state_sync.stdout | from_json).response.result.group["local-info"]["state-sync"] == 'Complete'
-        )
+        - name: State sync check (primary)
+          paloaltonetworks.panos.panos_op:
+            ip_address: '{{ primary }}'
+            username: "{{ username | default(omit) }}"
+            password: "{{ password | default(omit) }}"
+            cmd: 'show high-availability state'
+          register: primary_state_sync
+          retries: 10
+          delay: 30
+          until: >
+            primary_state_sync.stdout is defined and
+            (
+              (primary_state_sync.stdout | from_json).response.result.group["local-info"].state == 'passive' and
+              (primary_state_sync.stdout | from_json).response.result.group["local-info"]["state-sync"] == 'Complete'
+            )
 
-    - name: Pause for verification
-      pause:
-        prompt: 'Primary upgrade complete.  Pausing for verification.'
-      when: pause_mid_upgrade
+        - name: Pause for verification
+          pause:
+            prompt: 'Primary upgrade complete.  Pausing for verification.'
+          when: pause_mid_upgrade
 
-    - name: Suspend secondary device
-      paloaltonetworks.panos.panos_op:
-        ip_address: '{{ secondary }}'
-        username: "{{ username | default(omit) }}"
-        password: "{{ password | default(omit) }}"
-        cmd: 'request high-availability state suspend'
+    - name: Upgrade secondary
+      when: secondary in upgrade_targets
+      block:
+        - name: Suspend secondary device
+          paloaltonetworks.panos.panos_op:
+            ip_address: '{{ secondary }}'
+            username: "{{ username | default(omit) }}"
+            password: "{{ password | default(omit) }}"
+            cmd: 'request high-availability state suspend'
 
-    - name: Pause for suspend
-      pause:
-        seconds: 30
+        - name: Pause for suspend
+          pause:
+            seconds: 30
 
-    - name: Check that primary is now active
-      paloaltonetworks.panos.panos_op:
-        ip_address: '{{ primary }}'
-        username: "{{ username | default(omit) }}"
-        password: "{{ password | default(omit) }}"
-        cmd: 'show high-availability state'
-      register: primary_active
-      retries: 10
-      delay: 30
-      until: ( primary_active.stdout | from_json).response.result.group["local-info"].state == 'active' and
-             ( primary_active.stdout | from_json).response.result.group["peer-info"].state == 'suspended' and
-             ( primary_active.stdout | from_json).response.result.group["peer-info"]["state-reason"] == 'User requested'
+        - name: Check that primary is now active
+          paloaltonetworks.panos.panos_op:
+            ip_address: '{{ primary }}'
+            username: "{{ username | default(omit) }}"
+            password: "{{ password | default(omit) }}"
+            cmd: 'show high-availability state'
+          register: primary_active
+          retries: 10
+          delay: 30
+          until: ( primary_active.stdout | from_json).response.result.group["local-info"].state == 'active' and
+                 ( primary_active.stdout | from_json).response.result.group["peer-info"].state == 'suspended' and
+                 ( primary_active.stdout | from_json).response.result.group["peer-info"]["state-reason"] == 'User requested'
 
-    - name: Install target PAN-OS version and restart (secondary)
-      paloaltonetworks.panos.panos_software:
-        ip_address: '{{ secondary }}'
-        username: "{{ username | default(omit) }}"
-        password: "{{ password | default(omit) }}"
-        version: '{{ version }}'
-        download: false
-        restart: true
-      register: installresult
-      until: installresult is not failed
-      delay: 10
+        - name: Install target PAN-OS version and restart (secondary)
+          paloaltonetworks.panos.panos_software:
+            ip_address: '{{ secondary }}'
+            username: "{{ username | default(omit) }}"
+            password: "{{ password | default(omit) }}"
+            version: '{{ version }}'
+            download: false
+            restart: true
+          register: installresult
+          until: installresult is not failed
+          delay: 10
 
-    - name: Pause for restart
-      pause:
-        seconds: 30
+        - name: Pause for restart
+          pause:
+            seconds: 30
 
-    - name: Chassis ready (secondary)
-      paloaltonetworks.panos.panos_op:
-        ip_address: '{{ secondary }}'
-        username: "{{ username | default(omit) }}"
-        password: "{{ password | default(omit) }}"
-        cmd: 'show chassis-ready'
-      changed_when: false
-      register: result
-      until: result is not failed and (result.stdout | from_json).response.result == 'yes'
-      retries: 30
-      delay: 60
+        - name: Chassis ready (secondary)
+          paloaltonetworks.panos.panos_op:
+            ip_address: '{{ secondary }}'
+            username: "{{ username | default(omit) }}"
+            password: "{{ password | default(omit) }}"
+            cmd: 'show chassis-ready'
+          changed_when: false
+          register: result
+          until: result is not failed and (result.stdout | from_json).response.result == 'yes'
+          retries: 30
+          delay: 60
 
-    - name: State sync check (secondary)
-      paloaltonetworks.panos.panos_op:
-        ip_address: '{{ secondary }}'
-        username: "{{ username | default(omit) }}"
-        password: "{{ password | default(omit) }}"
-        cmd: 'show high-availability state'
-      register: secondary_state_sync
-      retries: 10
-      delay: 30
-      until: >
-        secondary_state_sync.stdout is defined and
-        (
-          (secondary_state_sync.stdout | from_json).response.result.group["local-info"].state == 'passive' and
-          (secondary_state_sync.stdout | from_json).response.result.group["local-info"]["state-sync"] == 'Complete'
-        )
+        - name: State sync check (secondary)
+          paloaltonetworks.panos.panos_op:
+            ip_address: '{{ secondary }}'
+            username: "{{ username | default(omit) }}"
+            password: "{{ password | default(omit) }}"
+            cmd: 'show high-availability state'
+          register: secondary_state_sync
+          retries: 10
+          delay: 30
+          until: >
+            secondary_state_sync.stdout is defined and
+            (
+              (secondary_state_sync.stdout | from_json).response.result.group["local-info"].state == 'passive' and
+              (secondary_state_sync.stdout | from_json).response.result.group["local-info"]["state-sync"] == 'Complete'
+            )
