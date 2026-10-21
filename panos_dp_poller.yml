@@ -1,0 +1,120 @@
+---
+# panos_dp_poller.yml - capture per-second dataplane evidence around short packet-buffer / session-setup freezes
+#
+# Description
+# ===========
+# Runs scripts/pa_dp_poller.py against BOTH firewalls of an HA pair, directly and in parallel. There is deliberately no
+# HA-active detection step (panos_active_in_ha per IP is slow, and the passive unit is cheap to poll).
+#
+# Why this is ONE long job and not a job every minute:
+#   An AAP job takes 10-40 s to start (container, project sync, inventory), which is longer than the ~5 s freezes we are
+#   looking for. So the job pays that startup cost once, then the script samples every few seconds inside it. At job
+#   start it also fetches 'show running resource-monitor second last 60', i.e. the previous 60 s of per-core CPU, packet
+#   buffer and descriptor use, so the gap between one job ending and the next starting is filled in afterwards.
+#
+# Schedule (job template -> Schedules), every 10 minutes with a 1 minute overlap:
+#   RRULE:FREQ=MINUTELY;INTERVAL=10
+#   Job template: Timeout 900, "Enable Concurrent Jobs" ON (the overlap), Verbosity 0.
+#
+# Output
+# ======
+# Nothing is kept in the job container (its /tmp is discarded). When an event is detected (packet buffer / descriptor /
+# DP cores over threshold, or new connections/s collapsing), a gzip JSON bundle is written and emailed.
+#
+# Example:
+#   ansible-playbook -i inventory panos_dp_poller.yml -e "target=ha_pair username=admin password=changeme"
+#
+# Variables:
+#   target                 host group of HA pairs (hosts carry primary_ip_address / secondary_ip_address, as monitor_memory.yml)
+#   username, password     or api_key (inject from an AAP credential; never put them in the playbook)
+#   poll_duration          seconds one job keeps sampling (default 660)
+#   poll_interval          point-probe interval in seconds (default 5)
+#   poll_mail_to           recipient of event bundles
+
+- name: Poll PAN-OS HA pair for dataplane freezes
+  hosts: "{{ target | default('ha_pair') }}"
+  connection: local
+  gather_facts: false
+
+  vars:
+    poll_duration: 660
+    poll_interval: 5
+    poll_mail_to: honver.lam@davispolk.com
+
+  tasks:
+    - name: Create work directory
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: pa_dp_poll_
+      register: work
+
+    - name: Poll, collect and email
+      block:
+        - name: Run the poller (one long task; backfills the previous 60 s at start)
+          ansible.builtin.command:
+            argv:
+              - python3
+              - "{{ playbook_dir }}/scripts/pa_dp_poller.py"
+              - --fw
+              - "{{ primary_ip_address }}"
+              - --fw
+              - "{{ secondary_ip_address }}"
+              - --out
+              - "{{ work.path }}"
+              - --duration
+              - "{{ poll_duration }}"
+              - --interval
+              - "{{ poll_interval }}"
+          environment:
+            PANOS_USERNAME: "{{ username | default('') }}"
+            PANOS_PASSWORD: "{{ password | default('') }}"
+            PANOS_API_KEY: "{{ api_key | default('') }}"
+          no_log: true
+          async: "{{ (poll_duration | int) + 120 }}"
+          poll: 15
+          changed_when: false
+
+        - name: Read poller summary
+          ansible.builtin.slurp:
+            src: "{{ work.path }}/summary.json"
+          register: summary_raw
+
+        - name: Show summary
+          ansible.builtin.debug:
+            msg: "{{ summary_raw.content | b64decode | from_json }}"
+
+        - name: Find event bundles
+          ansible.builtin.find:
+            paths: "{{ work.path }}"
+            patterns: "event_*.json.gz"
+          register: events
+
+        - name: Email event bundles
+          community.general.mail:
+            host: outlook.dpw.com
+            port: 25
+            from: ansible@davispolk.com
+            to: "{{ poll_mail_to }}"
+            subject: "[PAN-OS DP freeze] {{ inventory_hostname }} - {{ events.matched }} event(s)"
+            subtype: plain
+            body: |
+              Dataplane freeze evidence for {{ inventory_hostname }} ({{ primary_ip_address }} / {{ secondary_ip_address }}).
+              Event bundles attached: {{ events.matched }}.
+              Each bundle holds per-second CPU / packet buffer / descriptor rows, point samples with response times,
+              ingress backlogs and a counter diff around the trigger. Per-second times are estimated to about +-2 s.
+
+              Poller summary:
+              {{ summary_raw.content | b64decode }}
+            attach: "{{ events.files | map(attribute='path') | list }}"
+          when: events.matched | int > 0
+
+        - name: Fail the job if a firewall could not be polled
+          ansible.builtin.fail:
+            msg: "Poller could not poll every firewall: {{ (summary_raw.content | b64decode | from_json).result }}"
+          when: (summary_raw.content | b64decode | from_json).result.values() | reject('equalto', 'ok') | list | length > 0
+
+      always:
+        - name: Remove work directory
+          ansible.builtin.file:
+            path: "{{ work.path }}"
+            state: absent
