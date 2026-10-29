@@ -73,8 +73,8 @@ The script performs no automatic rollback or write retries.
    ClearPass administrator login.
 3. Attach **ClearPass API** to the job template's **Credentials** field.
 4. Use playbook `clearpass_printer_acl_dns.yml` and an inventory with localhost.
-   For testing, sync project branch `codex/clearpass-printer-acl-dns` (based on
-   `aap2`). These files must be merged before selecting `aap2` itself.
+   Sync project branch **aap2**, which contains the script and Network credential
+   support.
 
 The built-in Network credential injects `ANSIBLE_NET_USERNAME` and
 `ANSIBLE_NET_PASSWORD`; the playbook passes them to the script as
