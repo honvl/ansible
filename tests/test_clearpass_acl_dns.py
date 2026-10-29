@@ -62,6 +62,10 @@ class FakeClient:
 
 
 class RewriteTests(unittest.TestCase):
+    def test_reported_clearpass_rule_matches(self):
+        value = "permit tcp any host 35.75.113.120 eq 443"
+        self.assertEqual(acl.cloud_block(value)[3][0][1][2], "35.75.113.120")
+
     def test_replaces_all_four_and_preserves_every_other_byte(self):
         result = acl.rewrite_acl(CURRENT, ANSWERS)
         self.assertTrue(result.startswith(BEFORE))
@@ -127,6 +131,45 @@ class DnsTests(unittest.TestCase):
             with self.subTest(addresses=addresses), patch.object(acl.socket, "getaddrinfo", return_value=records):
                 with self.assertRaises(acl.UpdateError):
                     acl.resolve_ipv4(acl.HOSTS[0])
+
+
+class InspectionTests(unittest.TestCase):
+    def test_distinguishes_real_line_breaks_literal_escapes_and_html(self):
+        for value, expected in (
+            (OLD, {"physical_lines": 4, "newline_characters": 4, "literal_backslash_n": 0, "html_breaks": 0, "matching_https_lines": 4}),
+            (OLD.replace("\n", r"\n"), {"physical_lines": 1, "newline_characters": 0, "literal_backslash_n": 4, "html_breaks": 0, "matching_https_lines": 0}),
+            (OLD.replace("\n", "<br />"), {"physical_lines": 1, "newline_characters": 0, "literal_backslash_n": 0, "html_breaks": 4, "matching_https_lines": 0}),
+        ):
+            with self.subTest(value=value):
+                diagnostic = acl.inspect_acl(value)
+                for key, count in expected.items():
+                    self.assertEqual(diagnostic[key], count)
+                self.assertEqual(len(diagnostic["non_rfc1918_ip_contexts"]), 4)
+
+    def test_inspect_never_resolves_or_writes_even_when_acl_cannot_be_parsed(self):
+        client = FakeClient()
+        client.value["attributes"][1]["value"] = OLD.replace("\n", r"\n")
+        with patch.object(acl, "ClearPass", return_value=client), patch.object(acl, "resolve_ipv4") as resolve:
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(acl.main(["--url", "https://clearpass.example.com", "--inspect"]), 0)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["mode"], "inspect")
+            self.assertFalse(result["changed"])
+            self.assertEqual(result["acl_diagnostics"]["literal_backslash_n"], 4)
+            self.assertNotIn("other=value", output.getvalue())
+            resolve.assert_not_called()
+            self.assertEqual(client.calls, [])
+
+    def test_no_match_error_includes_diagnostics_and_never_writes(self):
+        client = FakeClient()
+        client.value["attributes"][1]["value"] = OLD.replace("\n", r"\n")
+        with patch.object(acl, "ClearPass", return_value=client):
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(acl.main(["--url", "https://clearpass.example.com"]), 1)
+            result = json.loads(output.getvalue())
+            self.assertIn("No non-RFC1918", result["error"])
+            self.assertEqual(result["acl_diagnostics"]["physical_lines"], 1)
+            self.assertEqual(client.calls, [])
 
 
 class UpdateTests(unittest.TestCase):

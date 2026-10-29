@@ -31,7 +31,8 @@
                   '--url', clearpass_url | default(lookup('env', 'CLEARPASS_URL'), true),
                   '--profile', clearpass_profile | default('DPW-Wired-Printer-ACL-Combined'),
                   '--backup', clearpass_work.path + '/profile-before.json']
-                 + (['--apply'] if (clearpass_apply | default(false) | bool) and not ansible_check_mode else [])
+                 + (['--inspect'] if clearpass_inspect | default(false) | bool else
+                    (['--apply'] if (clearpass_apply | default(false) | bool) and not ansible_check_mode else []))
                  + (['--ca-file', clearpass_ca_file] if clearpass_ca_file | default('') | length > 0 else [])
                  + (['--insecure'] if clearpass_insecure | default(false) | bool else []) }}
           environment:

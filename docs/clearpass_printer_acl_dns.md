@@ -122,6 +122,27 @@ This job updates the ClearPass profile; it does not trigger CoA or bounce printe
 sessions. Validate the switch's dACL caching and reauthentication behavior before
 relying on immediate changes for existing sessions.
 
+## Inspecting an ACL formatting mismatch
+
+If the job reports that no non-RFC1918 HTTPS rules were found, it includes
+`acl_diagnostics` describing the selected ACL's line endings and public-IP
+contexts. These excerpts use Python `repr` so hidden characters and literal
+backslash sequences are visible. The diagnostics include only the target ACL,
+not other profile attributes or authentication responses.
+
+For a dedicated read-only inspection, use these job Extra Variables:
+
+```yaml
+clearpass_url: https://YOUR_CLEARPASS_PUBLISHER
+clearpass_apply: false
+clearpass_inspect: true
+```
+
+Inspection reads the profile and prints its ACL formatting. It does not resolve
+DNS or write the profile, and takes precedence over `clearpass_apply`. Standalone
+equivalent: `scripts/clearpass_acl_dns.py --inspect`. Remove `clearpass_inspect`
+or set it to `false` to return to normal preview/apply behavior.
+
 ## References and validation
 
 - [6.11.0 release notes: enforcement profile REST support](https://arubanetworking.hpe.com/techdocs/ClearPass/CP_ReleaseNotes_6.x.x/Content/ReleaseNotes/NewFeatures/NewFeatures-6.11.0.htm)

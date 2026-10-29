@@ -33,7 +33,9 @@ RULE_PATTERN = re.compile(
 
 
 class UpdateError(Exception):
-    pass
+    def __init__(self, message, diagnostics=None):
+        super().__init__(message)
+        self.diagnostics = diagnostics
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -113,6 +115,33 @@ def acl_index(profile):
     return index
 
 
+def inspect_acl(value):
+    """Describe only the selected ACL, without dumping other profile attributes."""
+    lines = value.splitlines(keepends=True)
+    contexts = []
+    for match in re.finditer(IP_PATTERN, value):
+        try:
+            address = ipaddress.IPv4Address(match[0])
+        except ValueError:
+            continue
+        if any(address in network for network in RFC1918):
+            continue
+        contexts.append({"ip": str(address), "context_repr": repr(
+            value[max(0, match.start() - 70):match.end() + 70])})
+        if len(contexts) == 12:
+            break
+    return {
+        "attribute_type": ATTRIBUTE_TYPE, "attribute_name": ATTRIBUTE_NAME,
+        "characters": len(value), "physical_lines": len(lines),
+        "newline_characters": value.count("\n"), "carriage_return_characters": value.count("\r"),
+        "literal_backslash_n": value.count(r"\n"), "literal_backslash_r": value.count(r"\r"),
+        "html_breaks": len(re.findall(r"<br\s*/?>", value, re.I)),
+        "matching_https_lines": sum(bool(RULE_PATTERN.fullmatch(line)) for line in lines),
+        "first_line_repr": repr(lines[0][:200]) if lines else "''",
+        "non_rfc1918_ip_contexts": contexts,
+    }
+
+
 def cloud_block(acl):
     """Locate the only adjacent block of non-RFC1918 HTTPS host permits."""
     lines = acl.splitlines(keepends=True)
@@ -124,7 +153,8 @@ def cloud_block(acl):
             if not any(address in network for network in RFC1918):
                 matches.append((index, match))
     if not matches:
-        raise UpdateError("No non-RFC1918 'permit tcp any host ... eq 443' rules found")
+        raise UpdateError("No non-RFC1918 'permit tcp any host ... eq 443' rules found",
+                          inspect_acl(acl))
     start, end = matches[0][0], matches[-1][0]
     if end - start + 1 != len(matches):
         raise UpdateError("Non-RFC1918 HTTPS rules are not one adjacent block; refusing to modify the ACL")
@@ -206,7 +236,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default=os.environ.get("CLEARPASS_URL"))
     parser.add_argument("--profile", default=PROFILE)
-    parser.add_argument("--apply", action="store_true", help="Write changes; default is preview only")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--apply", action="store_true", help="Write changes; default is preview only")
+    mode.add_argument("--inspect", action="store_true", help="Read and describe the ACL's exact API formatting; no DNS lookup or PATCH")
     parser.add_argument("--backup", type=Path, help="New file for full original profile; required for writes")
     parser.add_argument("--ca-file", default=os.environ.get("CLEARPASS_CA_FILE") or None)
     parser.add_argument("--insecure", action="store_true", help="Disable certificate verification for testing")
@@ -215,11 +247,19 @@ def main(argv=None):
         parser.error("Set CLEARPASS_URL or pass --url")
     try:
         client = ClearPass(args.url, args.ca_file, args.insecure)
-        result = update(client, args.profile, args.apply, args.backup)
+        if args.inspect:
+            profile = client.profile(args.profile)
+            result = {"changed": False, "mode": "inspect", "profile": args.profile,
+                      "acl_diagnostics": inspect_acl(profile["attributes"][acl_index(profile)]["value"])}
+        else:
+            result = update(client, args.profile, args.apply, args.backup)
         print(json.dumps(result))
         return 0
     except (UpdateError, OSError, ValueError) as exc:
-        print(json.dumps({"changed": False, "error": str(exc)}))
+        result = {"changed": False, "error": str(exc)}
+        if isinstance(exc, UpdateError) and exc.diagnostics is not None:
+            result["acl_diagnostics"] = exc.diagnostics
+        print(json.dumps(result))
         return 1
 
 
