@@ -34,10 +34,11 @@ create an enabled **ClearPass REST API** client with **Client credentials** gran
 Its operator profile needs permission to read and update enforcement profiles.
 Use the writable **publisher's HTTPS origin**.
 
-Inject `CLEARPASS_URL`, `CLEARPASS_CLIENT_ID`, and `CLEARPASS_CLIENT_SECRET` through
-an AAP custom credential or your shell environment. An existing
-`CLEARPASS_ACCESS_TOKEN` can be used instead. Credentials are passed by environment,
-never command arguments. TLS certificates are verified by default. Use
+For AAP 2.6, use the built-in **Network** credential described below; no custom
+credential type is needed. For standalone use, set `CLEARPASS_URL`,
+`CLEARPASS_CLIENT_ID`, and `CLEARPASS_CLIENT_SECRET` in your shell environment.
+An existing `CLEARPASS_ACCESS_TOKEN` can be used instead. Credentials are passed
+by environment, never command arguments. TLS certificates are verified by default. Use
 `--ca-file` / `clearpass_ca_file` for an internal CA; `--insecure` /
 `clearpass_insecure` explicitly disables verification for testing.
 
@@ -62,11 +63,25 @@ jobs and avoid editing the profile while the job runs. A failed or timed-out
 PATCH may have taken effect; inspect the live profile and backup before retrying.
 The script performs no automatic rollback or write retries.
 
-## AAP2 / Tower
+## AAP 2.6 / Tower
 
-Create a job template using `clearpass_printer_acl_dns.yml`, an inventory with
-localhost, project branch **aap2**, and the credential above. It uses
-`ansible_playbook_python`, the job's existing interpreter. No EE rebuild is needed.
+1. Open **Automation Execution > Infrastructure > Credentials** and create a
+   credential named **ClearPass API**, with credential type **Network**.
+2. Enter the ClearPass API **Client ID** as **Username** and the **Client Secret**
+   as **Password**. Leave SSH keys and privilege escalation/Authorize fields empty
+   or disabled. These values are API client credentials, not an interactive
+   ClearPass administrator login.
+3. Attach **ClearPass API** to the job template's **Credentials** field.
+4. Use playbook `clearpass_printer_acl_dns.yml` and an inventory with localhost.
+   For testing, sync project branch `codex/clearpass-printer-acl-dns` (based on
+   `aap2`). These files must be merged before selecting `aap2` itself.
+
+The built-in Network credential injects `ANSIBLE_NET_USERNAME` and
+`ANSIBLE_NET_PASSWORD`; the playbook passes them to the script as
+`CLEARPASS_CLIENT_ID` and `CLEARPASS_CLIENT_SECRET`. It runs locally in the EE and
+calls the ClearPass HTTPS API. No SSH connection or custom injector is needed.
+It uses `ansible_playbook_python`, the job's existing interpreter, so no EE rebuild
+is required.
 
 Preview extra variables:
 
@@ -76,11 +91,17 @@ clearpass_apply: false
 # clearpass_ca_file: /path/to/internal-ca.pem
 ```
 
-The `clearpass_url` variable may be omitted if the credential injects
-`CLEARPASS_URL`. The credential can inject `CLEARPASS_ACCESS_TOKEN` or the two
-client credential environment variables directly; alternatively use the secret
-extra variables `clearpass_access_token` or
-`clearpass_client_id` / `clearpass_client_secret`.
+Use the publisher's HTTPS base URL, e.g. `https://clearpass-publisher.example.com`,
+with no `/tips/`, `/guest/`, or `/api` suffix. The URL goes in Extra Variables;
+the secret stays in the attached Network credential.
+
+Existing custom credentials remain supported: `CLEARPASS_URL`,
+`CLEARPASS_ACCESS_TOKEN`, `CLEARPASS_CLIENT_ID`, and `CLEARPASS_CLIENT_SECRET`
+environment variables, or `clearpass_access_token`, `clearpass_client_id`, and
+`clearpass_client_secret` extra variables. Explicit ClearPass client variables
+take precedence over `CLEARPASS_*` environment variables, which take precedence
+over the Network credential. The `clearpass_url` variable may be omitted when
+`CLEARPASS_URL` is injected.
 
 After a successful preview, set `clearpass_apply: true`. Ansible check mode still
 forces a preview. Disable **Enable Concurrent Jobs**. A five-minute schedule is
@@ -107,6 +128,7 @@ relying on immediate changes for existing sessions.
 - [Get an enforcement profile by name](https://developer.arubanetworks.com/cppm/reference/enforcementprofilenamebynameget)
 - [PATCH an enforcement profile](https://developer.arubanetworks.com/cppm/reference/enforcementprofilebyenforcement_profile_idpatch)
 - [ClearPass 6.11 API clients](https://arubanetworking.hpe.com/techdocs/ClearPass/6.11/Guest/Content/AdministrationTasks1/CreateEditAPIclient.htm)
+- [AAP 2.6 built-in Network credential and injected variables](https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/2.6/secure-ref_controller_credential_network)
 
 ```sh
 .venv/bin/python -m unittest discover -s tests -p 'test_clearpass_acl_dns.py' -v

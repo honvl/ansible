@@ -36,8 +36,12 @@
                  + (['--insecure'] if clearpass_insecure | default(false) | bool else []) }}
           environment:
             CLEARPASS_ACCESS_TOKEN: "{{ clearpass_access_token | default(lookup('env', 'CLEARPASS_ACCESS_TOKEN'), true) }}"
-            CLEARPASS_CLIENT_ID: "{{ clearpass_client_id | default(lookup('env', 'CLEARPASS_CLIENT_ID'), true) }}"
-            CLEARPASS_CLIENT_SECRET: "{{ clearpass_client_secret | default(lookup('env', 'CLEARPASS_CLIENT_SECRET'), true) }}"
+            CLEARPASS_CLIENT_ID: >-
+              {{ clearpass_client_id | default(lookup('env', 'CLEARPASS_CLIENT_ID'), true)
+                 | default(lookup('env', 'ANSIBLE_NET_USERNAME'), true) }}
+            CLEARPASS_CLIENT_SECRET: >-
+              {{ clearpass_client_secret | default(lookup('env', 'CLEARPASS_CLIENT_SECRET'), true)
+                 | default(lookup('env', 'ANSIBLE_NET_PASSWORD'), true) }}
           register: clearpass_result
           check_mode: false
           no_log: true
