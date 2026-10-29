@@ -1,0 +1,83 @@
+---
+# Run on the AAP/Tower control node, with its DNS resolver and network access.
+# Default: preview. To write, set clearpass_apply=true (and leave Ansible check mode off).
+- name: Refresh ClearPass printer-cloud HTTPS rules from DNS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+
+  tasks:
+    - name: Require a ClearPass publisher URL
+      ansible.builtin.assert:
+        that:
+          - (clearpass_url | default(lookup('env', 'CLEARPASS_URL'), true)) | length > 0
+        fail_msg: Set clearpass_url or inject CLEARPASS_URL through an AAP credential.
+
+    - name: Create job workspace
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: clearpass_acl_
+      register: clearpass_work
+      check_mode: false
+
+    - name: Run DNS refresh and retain the backup in job artifacts
+      block:
+        - name: Preview or apply the ACL update
+          ansible.builtin.command:
+            argv: >-
+              {{ [ansible_playbook_python, playbook_dir + '/scripts/clearpass_acl_dns.py',
+                  '--url', clearpass_url | default(lookup('env', 'CLEARPASS_URL'), true),
+                  '--profile', clearpass_profile | default('DPW-Wired-Printer-ACL-Combined'),
+                  '--backup', clearpass_work.path + '/profile-before.json']
+                 + (['--apply'] if (clearpass_apply | default(false) | bool) and not ansible_check_mode else [])
+                 + (['--ca-file', clearpass_ca_file] if clearpass_ca_file | default('') | length > 0 else [])
+                 + (['--insecure'] if clearpass_insecure | default(false) | bool else []) }}
+          environment:
+            CLEARPASS_ACCESS_TOKEN: "{{ clearpass_access_token | default(lookup('env', 'CLEARPASS_ACCESS_TOKEN'), true) }}"
+            CLEARPASS_CLIENT_ID: "{{ clearpass_client_id | default(lookup('env', 'CLEARPASS_CLIENT_ID'), true) }}"
+            CLEARPASS_CLIENT_SECRET: "{{ clearpass_client_secret | default(lookup('env', 'CLEARPASS_CLIENT_SECRET'), true) }}"
+          register: clearpass_result
+          check_mode: false
+          no_log: true
+          changed_when: clearpass_result.rc == 0 and (clearpass_result.stdout | from_json).changed
+          failed_when: false
+
+        - name: Show DNS results and ACL diff
+          ansible.builtin.debug:
+            msg: "{{ clearpass_result.stdout | default('{}', true) | from_json }}"
+
+        - name: Fail if DNS resolution or ACL update failed
+          ansible.builtin.fail:
+            msg: "{{ (clearpass_result.stdout | default('{}', true) | from_json).error | default('Script failed; check the execution environment Python runtime.') }}"
+          when: clearpass_result.rc != 0
+
+      always:
+        - name: Check whether an original profile backup was written
+          ansible.builtin.stat:
+            path: "{{ clearpass_work.path }}/profile-before.json"
+          register: clearpass_backup_file
+          check_mode: false
+
+        - name: Read the original profile backup
+          ansible.builtin.slurp:
+            src: "{{ clearpass_work.path }}/profile-before.json"
+          register: clearpass_backup
+          when: clearpass_backup_file.stat.exists
+          no_log: true
+          check_mode: false
+
+        - name: Retain original profile in AAP or Tower job artifacts
+          ansible.builtin.set_stats:
+            data:
+              clearpass_profile_before: "{{ clearpass_backup.content | b64decode | from_json }}"
+            aggregate: false
+          when: clearpass_backup_file.stat.exists
+          no_log: true
+
+        - name: Remove the temporary workspace
+          ansible.builtin.file:
+            path: "{{ clearpass_work.path }}"
+            state: absent
+          check_mode: false

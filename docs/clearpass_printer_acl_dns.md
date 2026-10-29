@@ -1,0 +1,117 @@
+# ClearPass printer ACL DNS refresh
+
+Use **aap2** for the existing AAP2 project. **master** serves the older Tower
+project; there is no `main` branch in this repository. This uses only Python's
+standard library and Ansible built-ins, so no additional EE packages or
+collections are required. The same script/playbook can run from Tower.
+
+Target: ClearPass **6.11.12**, enforcement profile
+**DPW-Wired-Printer-ACL-Combined**, attribute
+**Radius:Cisco / Cisco-IP-Downloadable-ACL**. Enforcement profile REST GET/PATCH
+support was introduced in 6.11.0.
+
+The script resolves all A records returned for `a01.ugwdevice.net` and
+`b01.ugwdevice.net`, combines and deduplicates the addresses, and replaces the
+existing adjacent block of `permit tcp any host <non-RFC1918-IP> eq 443` rules.
+There are currently four rules, two per name. The number of rules can change
+with DNS. Removed addresses are removed from the block. No per-address mapping,
+template export, or persistent state is needed.
+
+Selection follows the user's policy constraint: **all non-RFC1918 HTTPS host
+permits in this ACL belong to these two names and are adjacent**. RFC1918 means
+exactly `10.0.0.0/8`, `172.16.0.0/12`, and `192.168.0.0/16`. If another public
+HTTPS host permit is added to the same block, it would also be managed; revise
+this selector before using the ACL for other public HTTPS destinations. Missing
+or nonadjacent public rules cause a failure without writing. All text before
+and after the block, all RFC1918 rules, and all other profile attributes are
+preserved. An unchanged address set causes no PATCH, even if DNS answer order
+differs. New rules retain `eq 443` and the original block position.
+
+## Credentials and first preview
+
+In ClearPass Guest, open **Administration > API Services > API Clients** and
+create an enabled **ClearPass REST API** client with **Client credentials** grant.
+Its operator profile needs permission to read and update enforcement profiles.
+Use the writable **publisher's HTTPS origin**.
+
+Inject `CLEARPASS_URL`, `CLEARPASS_CLIENT_ID`, and `CLEARPASS_CLIENT_SECRET` through
+an AAP custom credential or your shell environment. An existing
+`CLEARPASS_ACCESS_TOKEN` can be used instead. Credentials are passed by environment,
+never command arguments. TLS certificates are verified by default. Use
+`--ca-file` / `clearpass_ca_file` for an internal CA; `--insecure` /
+`clearpass_insecure` explicitly disables verification for testing.
+
+```sh
+# With the environment variables above set, preview the live profile and diff.
+.venv/bin/python scripts/clearpass_acl_dns.py
+
+# Apply; the backup path must be writable and the filename must be new.
+.venv/bin/python scripts/clearpass_acl_dns.py \
+  --apply --backup /secure/path/profile-before-20261029T120000.json
+```
+
+Both hostname lookups must succeed, contain A records, and return only public
+unicast IPv4 destinations before a PATCH can occur. The script also checks that
+exactly one target attribute exists. It fetches the profile again immediately
+before writing to detect concurrent attribute edits, saves the complete original
+profile (mode 0600), PATCHes only the attributes field with all other attributes
+preserved, and verifies the result with a final GET.
+
+There remains a small race between the second GET and PATCH. Disable concurrent
+jobs and avoid editing the profile while the job runs. A failed or timed-out
+PATCH may have taken effect; inspect the live profile and backup before retrying.
+The script performs no automatic rollback or write retries.
+
+## AAP2 / Tower
+
+Create a job template using `clearpass_printer_acl_dns.yml`, an inventory with
+localhost, project branch **aap2**, and the credential above. It uses
+`ansible_playbook_python`, the job's existing interpreter. No EE rebuild is needed.
+
+Preview extra variables:
+
+```yaml
+clearpass_url: https://YOUR_CLEARPASS_PUBLISHER
+clearpass_apply: false
+# clearpass_ca_file: /path/to/internal-ca.pem
+```
+
+The `clearpass_url` variable may be omitted if the credential injects
+`CLEARPASS_URL`. The credential can inject `CLEARPASS_ACCESS_TOKEN` or the two
+client credential environment variables directly; alternatively use the secret
+extra variables `clearpass_access_token` or
+`clearpass_client_id` / `clearpass_client_secret`.
+
+After a successful preview, set `clearpass_apply: true`. Ansible check mode still
+forces a preview. Disable **Enable Concurrent Jobs**. A five-minute schedule is
+a starting point; choose the interval based on DNS TTL and acceptable delay.
+The EE needs working DNS, HTTPS access to the publisher, and trust for its
+certificate. Use the printers' DNS infrastructure where possible: regional or
+rotating DNS answers can differ between clients. The script reconciles the
+A records returned by its resolver; it cannot discover every address used
+globally by the vendor.
+
+When a PATCH is attempted, the complete original profile is retained in the
+`clearpass_profile_before` **AAP/Tower job artifact**, including on script failure.
+Restrict artifact access as appropriate for profile contents. The temporary
+backup inside the EE is removed at the end. Standalone runs retain the specified
+backup file. The script's JSON output contains the resolved addresses and ACL diff.
+
+This job updates the ClearPass profile; it does not trigger CoA or bounce printer
+sessions. Validate the switch's dACL caching and reauthentication behavior before
+relying on immediate changes for existing sessions.
+
+## References and validation
+
+- [6.11.0 release notes: enforcement profile REST support](https://arubanetworking.hpe.com/techdocs/ClearPass/CP_ReleaseNotes_6.x.x/Content/ReleaseNotes/NewFeatures/NewFeatures-6.11.0.htm)
+- [Get an enforcement profile by name](https://developer.arubanetworks.com/cppm/reference/enforcementprofilenamebynameget)
+- [PATCH an enforcement profile](https://developer.arubanetworks.com/cppm/reference/enforcementprofilebyenforcement_profile_idpatch)
+- [ClearPass 6.11 API clients](https://arubanetworking.hpe.com/techdocs/ClearPass/6.11/Guest/Content/AdministrationTasks1/CreateEditAPIclient.htm)
+
+```sh
+.venv/bin/python -m unittest discover -s tests -p 'test_clearpass_acl_dns.py' -v
+.venv/bin/ansible-playbook -i localhost, clearpass_printer_acl_dns.yml --syntax-check
+```
+
+No live ClearPass validation has been performed. The first preview checks the
+actual 6.11.12 API response and profile contents without changing policy.
