@@ -27,9 +27,11 @@ ATTRIBUTE_NAME = "Cisco-IP-Downloadable-ACL"
 HOSTS = ("a01.ugwdevice.net", "b01.ugwdevice.net")
 IP_PATTERN = r"[0-9]+(?:\.[0-9]+){3}"
 RFC1918 = tuple(ipaddress.IPv4Network(n) for n in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
+SEPARATOR_PATTERN = r"<br[ \t]*/?>(?:[ \t]*(?:\r\n|\n|\r))?|\r\n|\n|\r"
+ACL_SEPARATOR = re.compile(SEPARATOR_PATTERN, re.I)
 RULE_PATTERN = re.compile(
     r"([ \t]*permit[ \t]+tcp[ \t]+any[ \t]+host[ \t]+)(" + IP_PATTERN
-    + r")([ \t]+eq[ \t]+443[ \t]*)(\r\n|\n|\r)?", re.I)
+    + r")([ \t]+eq[ \t]+443[ \t]*)(" + SEPARATOR_PATTERN + r")?", re.I)
 
 
 class UpdateError(Exception):
@@ -115,9 +117,28 @@ def acl_index(profile):
     return index
 
 
+def split_acl_lines(value):
+    """Split newline or HTML-break-delimited ACLs, retaining every original byte."""
+    lines = []
+    offset = 0
+    for match in ACL_SEPARATOR.finditer(value):
+        lines.append(value[offset:match.end()])
+        offset = match.end()
+    if offset < len(value):
+        lines.append(value[offset:])
+    return lines
+
+
+def acl_diff_lines(value):
+    """Render logical rules as readable lines only for the preview diff."""
+    return [ACL_SEPARATOR.sub("\n", line).rstrip("\r\n") + "\n"
+            for line in split_acl_lines(value)]
+
+
 def inspect_acl(value):
     """Describe only the selected ACL, without dumping other profile attributes."""
     lines = value.splitlines(keepends=True)
+    logical_lines = split_acl_lines(value)
     contexts = []
     for match in re.finditer(IP_PATTERN, value):
         try:
@@ -132,11 +153,11 @@ def inspect_acl(value):
             break
     return {
         "attribute_type": ATTRIBUTE_TYPE, "attribute_name": ATTRIBUTE_NAME,
-        "characters": len(value), "physical_lines": len(lines),
+        "characters": len(value), "physical_lines": len(lines), "logical_lines": len(logical_lines),
         "newline_characters": value.count("\n"), "carriage_return_characters": value.count("\r"),
         "literal_backslash_n": value.count(r"\n"), "literal_backslash_r": value.count(r"\r"),
         "html_breaks": len(re.findall(r"<br\s*/?>", value, re.I)),
-        "matching_https_lines": sum(bool(RULE_PATTERN.fullmatch(line)) for line in lines),
+        "matching_https_lines": sum(bool(RULE_PATTERN.fullmatch(line)) for line in logical_lines),
         "first_line_repr": repr(lines[0][:200]) if lines else "''",
         "non_rfc1918_ip_contexts": contexts,
     }
@@ -144,7 +165,7 @@ def inspect_acl(value):
 
 def cloud_block(acl):
     """Locate the only adjacent block of non-RFC1918 HTTPS host permits."""
-    lines = acl.splitlines(keepends=True)
+    lines = split_acl_lines(acl)
     matches = []
     for index, line in enumerate(lines):
         match = RULE_PATTERN.fullmatch(line)
@@ -187,6 +208,9 @@ def rewrite_acl(current, resolved):
         return current
     first = matches[0][1]
     separator = first[4] or "\n"
+    if not first[4] and start > 0:
+        # A single managed rule at EOF has no terminator: use the preceding rule's separator.
+        separator = ACL_SEPARATOR.search(lines[start - 1])[0]
     ending = matches[-1][1][4] or ""
     replacement = separator.join(first[1] + ip + first[3] for ip in addresses) + ending
     return "".join(lines[:start]) + replacement + "".join(lines[end + 1:])
@@ -211,7 +235,7 @@ def update(client, profile_name, apply=False, backup=None):
     result = {"profile": profile_name, "resolved": resolved, "would_change": pending,
               "changed": False, "mode": "apply" if apply else "preview",
               "diff": "".join(difflib.unified_diff(
-                  current.splitlines(keepends=True), desired.splitlines(keepends=True),
+                  acl_diff_lines(current), acl_diff_lines(desired),
                   fromfile="current", tofile="DNS"))}
     if not pending or not apply:
         return result

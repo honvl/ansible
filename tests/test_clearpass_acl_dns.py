@@ -97,6 +97,43 @@ class RewriteTests(unittest.TestCase):
             if "\r\n" in current:
                 self.assertNotIn("\n", result.replace("\r\n", ""))
 
+    def test_html_break_variants_preserve_unmanaged_text_and_delimiters(self):
+        for separator in ("<br>", "<br/>", "<br />", "<BR>", "<Br />\r\n", "<br>\n", "<br> \r\n"):
+            with self.subTest(separator=separator):
+                current = CURRENT.replace("\n", separator)
+                result = acl.rewrite_acl(current, ANSWERS)
+                self.assertTrue(result.startswith(BEFORE.replace("\n", separator)))
+                self.assertTrue(result.endswith(AFTER.replace("\n", separator)))
+                self.assertEqual(result, acl.rewrite_acl(CURRENT, ANSWERS).replace("\n", separator))
+                self.assertEqual(len(acl.cloud_block(result)[3]), 4)
+                self.assertEqual(acl.rewrite_acl(result, ANSWERS), result)
+
+    def test_mixed_separators_and_rule_count_change(self):
+        prefix = BEFORE.replace("\n", "<br />\r\n")
+        suffix = AFTER.replace("\n", "<BR>")
+        block = OLD.replace("\n", "<br>")
+        current = prefix + block + suffix
+        for count in (1, 3, 6):
+            with self.subTest(count=count):
+                addresses = ["35.75.113." + str(i + 1) for i in range(count)]
+                result = acl.rewrite_acl(current, {"both": addresses})
+                self.assertEqual(result, prefix + "".join(
+                    "permit tcp any host " + ip + " eq 443<br>" for ip in addresses) + suffix)
+
+    def test_last_rule_without_terminator_uses_html_separator(self):
+        current = "permit tcp any host 10.0.0.1 eq 443<br>permit tcp any host 35.75.113.120 eq 443"
+        result = acl.rewrite_acl(current, ANSWERS)
+        self.assertNotIn("\n", result)
+        self.assertTrue(result.endswith("eq 443"))
+        self.assertEqual(len(acl.cloud_block(result)[3]), 4)
+
+    def test_html_private_rule_or_deny_between_public_rules_is_refused(self):
+        for separator in ("<br>", "<br />\r\n"):
+            for between in ("permit tcp any host 10.0.0.1 eq 443", "deny tcp any any eq 443"):
+                current = separator.join((OLD.splitlines()[0], between, OLD.splitlines()[1]))
+                with self.subTest(separator=separator, between=between), self.assertRaises(acl.UpdateError):
+                    acl.rewrite_acl(current, ANSWERS)
+
     def test_rfc1918_boundaries(self):
         private = ("10.0.0.0", "10.255.255.255", "172.16.0.0", "172.31.255.255", "192.168.0.0", "192.168.255.255")
         prefix = "".join("permit tcp any host " + ip + " eq 443\n" for ip in private)
@@ -138,7 +175,7 @@ class InspectionTests(unittest.TestCase):
         for value, expected in (
             (OLD, {"physical_lines": 4, "newline_characters": 4, "literal_backslash_n": 0, "html_breaks": 0, "matching_https_lines": 4}),
             (OLD.replace("\n", r"\n"), {"physical_lines": 1, "newline_characters": 0, "literal_backslash_n": 4, "html_breaks": 0, "matching_https_lines": 0}),
-            (OLD.replace("\n", "<br />"), {"physical_lines": 1, "newline_characters": 0, "literal_backslash_n": 0, "html_breaks": 4, "matching_https_lines": 0}),
+            (OLD.replace("\n", "<br />"), {"physical_lines": 1, "newline_characters": 0, "literal_backslash_n": 0, "html_breaks": 4, "matching_https_lines": 4, "logical_lines": 4}),
         ):
             with self.subTest(value=value):
                 diagnostic = acl.inspect_acl(value)
@@ -203,6 +240,21 @@ class UpdateTests(unittest.TestCase):
         self.client.calls.clear()
         result = acl.update(self.client, acl.PROFILE, True)
         self.assertFalse(result["would_change"])
+        self.assertEqual(self.client.calls, [])
+
+    def test_html_api_value_apply_backup_diff_and_idempotence(self):
+        current = CURRENT.replace("\n", "<br>")
+        self.client.value["attributes"][1]["value"] = current
+        result = acl.update(self.client, acl.PROFILE, True, self.backup)
+        self.assertTrue(result["changed"])
+        self.assertIn("-permit tcp any host 13.193.137.162 eq 443\n", result["diff"])
+        self.assertIn("+permit tcp any host 13.193.137.170 eq 443\n", result["diff"])
+        self.assertNotIn("<br>", result["diff"])
+        self.assertEqual(json.loads(self.backup.read_text())["attributes"][1]["value"], current)
+        saved = self.client.value["attributes"][1]["value"]
+        self.assertEqual(saved, acl.rewrite_acl(CURRENT, ANSWERS).replace("\n", "<br>"))
+        self.client.calls.clear()
+        self.assertFalse(acl.update(self.client, acl.PROFILE, True)["changed"])
         self.assertEqual(self.client.calls, [])
 
     def test_dns_failure_at_second_host_never_patches(self):

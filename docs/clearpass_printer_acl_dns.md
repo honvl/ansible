@@ -27,6 +27,12 @@ and after the block, all RFC1918 rules, and all other profile attributes are
 preserved. An unchanged address set causes no PATCH, even if DNS answer order
 differs. New rules retain `eq 443` and the original block position.
 
+The API can return ACL rules separated by HTML `<br>` tags. The script recognizes
+`<br>`, `<br/>`, and `<br />` (case-insensitively), ordinary line endings, and HTML
+breaks followed by a physical newline. The original separators and all text
+outside the managed block are preserved in the PATCH value. The preview diff
+shows one rule per readable line regardless of the API's separator format.
+
 ## Credentials and first preview
 
 In ClearPass Guest, open **Administration > API Services > API Clients** and
