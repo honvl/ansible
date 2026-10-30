@@ -135,6 +135,11 @@ def acl_diff_lines(value):
             for line in split_acl_lines(value)]
 
 
+def normalize_acl(value):
+    """Convert API display separators to actual LF characters for the switch dACL."""
+    return ACL_SEPARATOR.sub("\n", value)
+
+
 def inspect_acl(value):
     """Describe only the selected ACL, without dumping other profile attributes."""
     lines = value.splitlines(keepends=True)
@@ -199,6 +204,7 @@ def resolve_ipv4(host):
 
 
 def rewrite_acl(current, resolved):
+    current = normalize_acl(current)
     lines, start, end, matches = cloud_block(current)
     addresses = sorted({ip for values in resolved.values() for ip in values}, key=ipaddress.IPv4Address)
     if not addresses:
@@ -224,16 +230,19 @@ def save_exclusive(path, content):
         os.fsync(handle.fileno())
 
 
-def update(client, profile_name, apply=False, backup=None):
+def update(client, profile_name, apply=False, backup=None, force=False):
     profile = client.profile(profile_name)
     index = acl_index(profile)
     current = profile["attributes"][index]["value"]
     cloud_block(current)
     resolved = {host: resolve_ipv4(host) for host in HOSTS}
     desired = rewrite_acl(current, resolved)
-    pending = desired != current
+    # GET may render stored newlines as HTML. Compare logical content to avoid
+    # writing on every scheduled run. --force repairs an earlier HTML-valued PATCH.
+    pending = desired != normalize_acl(current) or force
     result = {"profile": profile_name, "resolved": resolved, "would_change": pending,
               "changed": False, "mode": "apply" if apply else "preview",
+              "forced": force, "outgoing_line_breaks": "LF",
               "diff": "".join(difflib.unified_diff(
                   acl_diff_lines(current), acl_diff_lines(desired),
                   fromfile="current", tofile="DNS"))}
@@ -250,7 +259,12 @@ def update(client, profile_name, apply=False, backup=None):
     attributes[index]["value"] = desired
     # This endpoint patches fields, not individual array elements. Preserve the complete array.
     client.request("PATCH", path, {"attributes": attributes})
-    if client.request("GET", path).get("attributes") != attributes:
+    readback = copy.deepcopy(client.request("GET", path).get("attributes"))
+    if (isinstance(readback, list) and index < len(readback)
+            and isinstance(readback[index], dict) and isinstance(readback[index].get("value"), str)):
+        # ClearPass can render newlines as <br> on GET even when PATCH used LF.
+        readback[index]["value"] = normalize_acl(readback[index]["value"])
+    if readback != attributes:
         raise UpdateError("PATCH was sent but read-back did not match; inspect ClearPass and the backup before retrying")
     result.update(changed=True, backup=str(backup))
     return result
@@ -263,6 +277,7 @@ def main(argv=None):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--apply", action="store_true", help="Write changes; default is preview only")
     mode.add_argument("--inspect", action="store_true", help="Read and describe the ACL's exact API formatting; no DNS lookup or PATCH")
+    parser.add_argument("--force", action="store_true", help="Write even if DNS is unchanged; use once to repair previously stored HTML separators")
     parser.add_argument("--backup", type=Path, help="New file for full original profile; required for writes")
     parser.add_argument("--ca-file", default=os.environ.get("CLEARPASS_CA_FILE") or None)
     parser.add_argument("--insecure", action="store_true", help="Disable certificate verification for testing")
@@ -276,7 +291,7 @@ def main(argv=None):
             result = {"changed": False, "mode": "inspect", "profile": args.profile,
                       "acl_diagnostics": inspect_acl(profile["attributes"][acl_index(profile)]["value"])}
         else:
-            result = update(client, args.profile, args.apply, args.backup)
+            result = update(client, args.profile, args.apply, args.backup, args.force)
         print(json.dumps(result))
         return 0
     except (UpdateError, OSError, ValueError) as exc:

@@ -45,10 +45,17 @@ class FakeClient:
         self.calls = []
         self.before_patch = None
         self.bad_readback = False
+        self.render_html = False
+
+    def response(self):
+        value = copy.deepcopy(self.value)
+        if self.render_html:
+            value["attributes"][1]["value"] = value["attributes"][1]["value"].replace("\n", "<br>")
+        return value
 
     def profile(self, name):
         assert name == self.value["name"]
-        return copy.deepcopy(self.value)
+        return self.response()
 
     def request(self, method, path, body=None):
         self.calls.append((method, path, copy.deepcopy(body)))
@@ -58,7 +65,7 @@ class FakeClient:
             if not self.bad_readback:
                 self.value.update(copy.deepcopy(body))
             return {}
-        return copy.deepcopy(self.value)
+        return self.response()
 
 
 class RewriteTests(unittest.TestCase):
@@ -90,21 +97,23 @@ class RewriteTests(unittest.TestCase):
         old_ips = [m[2] for _, m in acl.cloud_block(current)[3]]
         self.assertEqual(acl.rewrite_acl(current, {"both": old_ips[::-1]}), current)
 
-    def test_crlf_and_missing_terminal_newline_preserved(self):
+    def test_crlf_normalized_and_missing_terminal_newline_preserved(self):
         for current in (CURRENT.replace("\n", "\r\n"), OLD.rstrip("\n")):
             result = acl.rewrite_acl(current, ANSWERS)
             self.assertEqual(result.endswith("\n"), current.endswith("\n"))
-            if "\r\n" in current:
-                self.assertNotIn("\n", result.replace("\r\n", ""))
+            self.assertNotIn("\r", result)
+            self.assertIn("\n", result)
 
-    def test_html_break_variants_preserve_unmanaged_text_and_delimiters(self):
+    def test_html_break_variants_become_real_newlines_preserving_unmanaged_rules(self):
         for separator in ("<br>", "<br/>", "<br />", "<BR>", "<Br />\r\n", "<br>\n", "<br> \r\n"):
             with self.subTest(separator=separator):
                 current = CURRENT.replace("\n", separator)
                 result = acl.rewrite_acl(current, ANSWERS)
-                self.assertTrue(result.startswith(BEFORE.replace("\n", separator)))
-                self.assertTrue(result.endswith(AFTER.replace("\n", separator)))
-                self.assertEqual(result, acl.rewrite_acl(CURRENT, ANSWERS).replace("\n", separator))
+                self.assertTrue(result.startswith(BEFORE))
+                self.assertTrue(result.endswith(AFTER))
+                self.assertEqual(result, acl.rewrite_acl(CURRENT, ANSWERS))
+                self.assertNotIn("<br", result.lower())
+                self.assertNotIn(r"\n", result)
                 self.assertEqual(len(acl.cloud_block(result)[3]), 4)
                 self.assertEqual(acl.rewrite_acl(result, ANSWERS), result)
 
@@ -117,13 +126,14 @@ class RewriteTests(unittest.TestCase):
             with self.subTest(count=count):
                 addresses = ["35.75.113." + str(i + 1) for i in range(count)]
                 result = acl.rewrite_acl(current, {"both": addresses})
-                self.assertEqual(result, prefix + "".join(
-                    "permit tcp any host " + ip + " eq 443<br>" for ip in addresses) + suffix)
+                self.assertEqual(result, BEFORE + "".join(
+                    "permit tcp any host " + ip + " eq 443\n" for ip in addresses) + AFTER)
 
-    def test_last_rule_without_terminator_uses_html_separator(self):
+    def test_last_rule_without_terminator_uses_real_newlines(self):
         current = "permit tcp any host 10.0.0.1 eq 443<br>permit tcp any host 35.75.113.120 eq 443"
         result = acl.rewrite_acl(current, ANSWERS)
-        self.assertNotIn("\n", result)
+        self.assertIn("\n", result)
+        self.assertNotIn("<br>", result)
         self.assertTrue(result.endswith("eq 443"))
         self.assertEqual(len(acl.cloud_block(result)[3]), 4)
 
@@ -252,10 +262,39 @@ class UpdateTests(unittest.TestCase):
         self.assertNotIn("<br>", result["diff"])
         self.assertEqual(json.loads(self.backup.read_text())["attributes"][1]["value"], current)
         saved = self.client.value["attributes"][1]["value"]
-        self.assertEqual(saved, acl.rewrite_acl(CURRENT, ANSWERS).replace("\n", "<br>"))
+        self.assertEqual(saved, acl.rewrite_acl(CURRENT, ANSWERS))
+        payload = next(body for method, _, body in self.client.calls if method == "PATCH")
+        wire_value = json.loads(json.dumps(payload))["attributes"][1]["value"]
+        self.assertNotIn("<br", wire_value.lower())
+        self.assertNotIn(r"\n", wire_value)
+        self.assertIn("\n", wire_value)
         self.client.calls.clear()
         self.assertFalse(acl.update(self.client, acl.PROFILE, True)["changed"])
         self.assertEqual(self.client.calls, [])
+
+    def test_html_rendered_readback_verifies_and_does_not_cause_repeat_writes(self):
+        self.client.render_html = True
+        self.assertTrue(acl.update(self.client, acl.PROFILE, True, self.backup)["changed"])
+        stored = self.client.value["attributes"][1]["value"]
+        self.assertNotIn("<br>", stored)
+        self.assertIn("\n", stored)
+        self.client.calls.clear()
+        self.assertFalse(acl.update(self.client, acl.PROFILE, True)["would_change"])
+        self.assertEqual(self.client.calls, [])
+
+    def test_force_repairs_existing_html_even_when_dns_is_unchanged(self):
+        canonical = acl.rewrite_acl(CURRENT, ANSWERS)
+        broken = canonical.replace("\n", "<br>")
+        self.client.value["attributes"][1]["value"] = broken
+        self.assertFalse(acl.update(self.client, acl.PROFILE)["would_change"])
+        preview = acl.update(self.client, acl.PROFILE, force=True)
+        self.assertTrue(preview["would_change"])
+        self.assertFalse(preview["changed"])
+        self.assertEqual(self.client.calls, [])
+        result = acl.update(self.client, acl.PROFILE, True, self.backup, force=True)
+        self.assertTrue(result["changed"])
+        self.assertEqual(self.client.value["attributes"][1]["value"], canonical)
+        self.assertEqual(json.loads(self.backup.read_text())["attributes"][1]["value"], broken)
 
     def test_dns_failure_at_second_host_never_patches(self):
         with patch.object(acl, "resolve_ipv4", side_effect=[ANSWERS[acl.HOSTS[0]], acl.UpdateError("DNS failed")]):

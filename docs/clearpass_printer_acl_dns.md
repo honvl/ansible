@@ -22,16 +22,42 @@ permits in this ACL belong to these two names and are adjacent**. RFC1918 means
 exactly `10.0.0.0/8`, `172.16.0.0/12`, and `192.168.0.0/16`. If another public
 HTTPS host permit is added to the same block, it would also be managed; revise
 this selector before using the ACL for other public HTTPS destinations. Missing
-or nonadjacent public rules cause a failure without writing. All text before
+or nonadjacent public rules cause a failure without writing. All rule text before
 and after the block, all RFC1918 rules, and all other profile attributes are
-preserved. An unchanged address set causes no PATCH, even if DNS answer order
+preserved. ACL separators are normalized as described below. An unchanged address set causes no PATCH, even if DNS answer order
 differs. New rules retain `eq 443` and the original block position.
 
 The API can return ACL rules separated by HTML `<br>` tags. The script recognizes
 `<br>`, `<br/>`, and `<br />` (case-insensitively), ordinary line endings, and HTML
-breaks followed by a physical newline. The original separators and all text
-outside the managed block are preserved in the PATCH value. The preview diff
-shows one rule per readable line regardless of the API's separator format.
+breaks followed by a physical newline. **Every outgoing ACL separator is converted
+to an actual LF newline before PATCH**, including separators outside the managed
+block. No `<br>` tags are sent in the downloadable ACL. JSON encodes LF characters
+as `\n` on the wire; decoding produces real line breaks, not literal backslash-n
+text. The preview diff shows one rule per readable line.
+
+Read-back verification normalizes the target ACL's separators for comparison,
+because a GET response may render line breaks as `<br>`. Other attributes are
+compared exactly. This also avoids repeatedly PATCHing an unchanged address set
+just because GET returns HTML display separators.
+
+### Repairing an ACL written by the earlier version
+
+The earlier HTML-separator handling incorrectly preserved `<br>` tags in the
+PATCH value. To rewrite the ACL with actual newlines even if the DNS addresses
+have not changed, run the corrected version once with:
+
+```yaml
+clearpass_apply: true
+clearpass_inspect: false
+clearpass_force_update: true
+```
+
+Keep your existing `clearpass_url` and Network credential. A backup is retained
+before writing. After that one run, remove `clearpass_force_update` or set it to
+`false` so normal scheduled jobs only PATCH when DNS changes. Standalone runs can
+use `--apply --force --backup /secure/path/new-backup.json`. A forced preview
+(`clearpass_apply: false`) reports `would_change: true`; its rule diff can be empty
+when the only change is the outgoing separator format.
 
 ## Credentials and first preview
 

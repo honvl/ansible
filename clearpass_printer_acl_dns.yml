@@ -33,6 +33,7 @@
                   '--backup', clearpass_work.path + '/profile-before.json']
                  + (['--inspect'] if clearpass_inspect | default(false) | bool else
                     (['--apply'] if (clearpass_apply | default(false) | bool) and not ansible_check_mode else []))
+                 + (['--force'] if clearpass_force_update | default(false) | bool else [])
                  + (['--ca-file', clearpass_ca_file] if clearpass_ca_file | default('') | length > 0 else [])
                  + (['--insecure'] if clearpass_insecure | default(false) | bool else []) }}
           environment:
