@@ -219,6 +219,49 @@ class InspectionTests(unittest.TestCase):
             self.assertEqual(client.calls, [])
 
 
+class VerificationTests(unittest.TestCase):
+    def test_accepts_html_crlf_trailing_spaces_and_terminal_blank_lines(self):
+        expected = profile()["attributes"]
+        for ending in ("\n", "\r\n", "<br>", "<BR />\r\n"):
+            returned = copy.deepcopy(expected)
+            returned[1]["value"] = ending.join(line + " \t" for line in CURRENT.splitlines()) + ending * 2
+            with self.subTest(ending=ending):
+                self.assertTrue(acl.verify_attributes(expected, returned)["matches"])
+
+    def test_rejects_changed_missing_or_reordered_rules_with_acl_diff(self):
+        expected = profile()["attributes"]
+        for changed in (CURRENT.replace("eq 443", "eq 80"),
+                        CURRENT.replace("deny ip any any", ""),
+                        "\n".join(reversed(CURRENT.splitlines()))):
+            returned = copy.deepcopy(expected)
+            returned[1]["value"] = changed
+            with self.subTest(changed=changed):
+                report = acl.verify_attributes(expected, returned)
+                self.assertFalse(report["matches"])
+                self.assertFalse(report["acl_matches"])
+                self.assertTrue(report["other_attribute_fields_match"])
+                self.assertIn("acl_diff", report)
+
+    def test_unrelated_attribute_values_remain_strict_and_are_not_disclosed(self):
+        expected = profile()["attributes"]
+        returned = copy.deepcopy(expected)
+        returned[2]["value"] = "private-test-value-do-not-disclose"
+        report = acl.verify_attributes(expected, returned)
+        self.assertFalse(report["matches"])
+        self.assertTrue(report["acl_matches"])
+        self.assertFalse(report["other_attribute_fields_match"])
+        self.assertEqual(report["attribute_differences"][0]["different_fields"], ["value"])
+        self.assertNotIn("private-test-value-do-not-disclose", json.dumps(report))
+
+    def test_missing_attributes_and_duplicate_target_fail_clearly(self):
+        expected = profile()["attributes"]
+        for returned in (None, [], [expected[1]] * 2):
+            with self.subTest(returned=returned):
+                report = acl.verify_attributes(expected, returned)
+                self.assertFalse(report["matches"])
+                self.assertIn("reason", report)
+
+
 class UpdateTests(unittest.TestCase):
     def setUp(self):
         self.client = FakeClient()
@@ -296,6 +339,23 @@ class UpdateTests(unittest.TestCase):
         self.assertEqual(self.client.value["attributes"][1]["value"], canonical)
         self.assertEqual(json.loads(self.backup.read_text())["attributes"][1]["value"], broken)
 
+    def test_api_added_terminal_breaks_verify_and_do_not_trigger_repeat_writes(self):
+        original_response = self.client.response
+
+        def formatted_response():
+            value = original_response()
+            value["attributes"][1]["value"] = value["attributes"][1]["value"].replace("\n", " \t<br>") + "<br><br>"
+            return value
+
+        self.client.response = formatted_response
+        result = acl.update(self.client, acl.PROFILE, True, self.backup)
+        self.assertTrue(result["changed"])
+        self.assertTrue(result["verified"])
+        self.assertNotIn("<br>", self.client.value["attributes"][1]["value"])
+        self.client.calls.clear()
+        self.assertFalse(acl.update(self.client, acl.PROFILE, True)["would_change"])
+        self.assertEqual(self.client.calls, [])
+
     def test_dns_failure_at_second_host_never_patches(self):
         with patch.object(acl, "resolve_ipv4", side_effect=[ANSWERS[acl.HOSTS[0]], acl.UpdateError("DNS failed")]):
             with self.assertRaises(acl.UpdateError):
@@ -325,6 +385,20 @@ class UpdateTests(unittest.TestCase):
         with self.assertRaisesRegex(acl.UpdateError, "read-back"):
             acl.update(self.client, acl.PROFILE, True, self.backup)
         self.assertTrue(self.backup.exists())
+
+    def test_post_write_verification_error_identifies_mismatch_without_claiming_no_change(self):
+        self.client.bad_readback = True
+        with patch.object(acl, "ClearPass", return_value=self.client):
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(acl.main(["--url", "https://clearpass.example.com", "--apply",
+                                           "--backup", str(self.backup)]), 1)
+        result = json.loads(output.getvalue())
+        self.assertIsNone(result["changed"])
+        self.assertTrue(result["write_attempted"])
+        self.assertFalse(result["verified"])
+        self.assertFalse(result["verification_diagnostics"]["acl_matches"])
+        self.assertIn("acl_diff", result["verification_diagnostics"])
+        self.assertEqual([call[0] for call in self.client.calls].count("PATCH"), 1)
 
     def test_missing_duplicate_or_wrong_attribute_refused(self):
         for attributes in ([], [self.client.value["attributes"][1]] * 2,

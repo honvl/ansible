@@ -36,9 +36,18 @@ as `\n` on the wire; decoding produces real line breaks, not literal backslash-n
 text. The preview diff shows one rule per readable line.
 
 Read-back verification normalizes the target ACL's separators for comparison,
-because a GET response may render line breaks as `<br>`. Other attributes are
-compared exactly. This also avoids repeatedly PATCHing an unchanged address set
-just because GET returns HTML display separators.
+because a GET response may render line breaks as `<br>`. Trailing spaces/tabs on
+each line and terminal blank lines are ignored during comparison. Command text,
+rule order, interior blank lines, and other attribute fields remain strict. This
+also avoids repeatedly PATCHing an unchanged address set just because GET returns
+HTML display separators or adds a terminal line break.
+
+A failed read-back check includes `verification_diagnostics`, identifying whether
+the ACL commands differ or another attribute field changed. ACL differences are
+shown as an expected/read-back diff. Other attribute differences show field names
+without exposing their values. Such an error reports `write_attempted: true`,
+`verified: false`, and `changed: null`: the PATCH was sent, so the job cannot claim
+that no change occurred. The verifier never resends the PATCH automatically.
 
 ### Repairing an ACL written by the earlier version
 

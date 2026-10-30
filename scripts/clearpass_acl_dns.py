@@ -35,9 +35,11 @@ RULE_PATTERN = re.compile(
 
 
 class UpdateError(Exception):
-    def __init__(self, message, diagnostics=None):
+    def __init__(self, message, diagnostics=None, diagnostic_key="acl_diagnostics", write_attempted=False):
         super().__init__(message)
         self.diagnostics = diagnostics
+        self.diagnostic_key = diagnostic_key
+        self.write_attempted = write_attempted
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -140,6 +142,56 @@ def normalize_acl(value):
     return ACL_SEPARATOR.sub("\n", value)
 
 
+def comparison_lines(value):
+    """Ignore trailing horizontal whitespace and terminal blank lines, not commands/order."""
+    lines = [line.rstrip(" \t") for line in normalize_acl(value).splitlines()]
+    while lines and not lines[-1]:
+        lines.pop()
+    return lines
+
+
+def verify_attributes(expected, returned):
+    """Compare ACL command text separately from all other attribute fields."""
+    report = {"matches": False, "expected_attribute_count": len(expected),
+              "returned_attribute_count": len(returned) if isinstance(returned, list) else None}
+    try:
+        expected_index = acl_index({"attributes": expected})
+        returned_index = acl_index({"attributes": returned})
+    except UpdateError as exc:
+        report["reason"] = str(exc)
+        return report
+    expected_acl = expected[expected_index]["value"]
+    returned_acl = returned[returned_index]["value"]
+    expected_lines, returned_lines = comparison_lines(expected_acl), comparison_lines(returned_acl)
+    expected_other, returned_other = copy.deepcopy(expected), copy.deepcopy(returned)
+    expected_other[expected_index]["value"] = None
+    returned_other[returned_index]["value"] = None
+    acl_matches = expected_lines == returned_lines
+    other_matches = expected_other == returned_other
+    report.update(matches=acl_matches and other_matches, acl_matches=acl_matches,
+                  other_attribute_fields_match=other_matches,
+                  expected_acl_position=expected_index, returned_acl_position=returned_index)
+    if not acl_matches:
+        report["acl_diff"] = "".join(difflib.unified_diff(
+            [line + "\n" for line in expected_lines], [line + "\n" for line in returned_lines],
+            fromfile="expected", tofile="read-back"))
+        report["expected_acl_format"] = inspect_acl(expected_acl)
+        report["returned_acl_format"] = inspect_acl(returned_acl)
+    if not other_matches:
+        # Report field names only; unrelated attribute values may contain secrets.
+        differences = []
+        for index in range(max(len(expected_other), len(returned_other))):
+            before = expected_other[index] if index < len(expected_other) else {}
+            after = returned_other[index] if index < len(returned_other) else {}
+            keys = sorted(key for key in set(before) | set(after) if before.get(key) != after.get(key)
+                          or (key in before) != (key in after))
+            if keys:
+                differences.append({"position": index, "expected_name": before.get("name"),
+                                    "returned_name": after.get("name"), "different_fields": keys})
+        report["attribute_differences"] = differences
+    return report
+
+
 def inspect_acl(value):
     """Describe only the selected ACL, without dumping other profile attributes."""
     lines = value.splitlines(keepends=True)
@@ -239,7 +291,7 @@ def update(client, profile_name, apply=False, backup=None, force=False):
     desired = rewrite_acl(current, resolved)
     # GET may render stored newlines as HTML. Compare logical content to avoid
     # writing on every scheduled run. --force repairs an earlier HTML-valued PATCH.
-    pending = desired != normalize_acl(current) or force
+    pending = comparison_lines(desired) != comparison_lines(current) or force
     result = {"profile": profile_name, "resolved": resolved, "would_change": pending,
               "changed": False, "mode": "apply" if apply else "preview",
               "forced": force, "outgoing_line_breaks": "LF",
@@ -259,14 +311,11 @@ def update(client, profile_name, apply=False, backup=None, force=False):
     attributes[index]["value"] = desired
     # This endpoint patches fields, not individual array elements. Preserve the complete array.
     client.request("PATCH", path, {"attributes": attributes})
-    readback = copy.deepcopy(client.request("GET", path).get("attributes"))
-    if (isinstance(readback, list) and index < len(readback)
-            and isinstance(readback[index], dict) and isinstance(readback[index].get("value"), str)):
-        # ClearPass can render newlines as <br> on GET even when PATCH used LF.
-        readback[index]["value"] = normalize_acl(readback[index]["value"])
-    if readback != attributes:
-        raise UpdateError("PATCH was sent but read-back did not match; inspect ClearPass and the backup before retrying")
-    result.update(changed=True, backup=str(backup))
+    verification = verify_attributes(attributes, client.request("GET", path).get("attributes"))
+    if not verification["matches"]:
+        raise UpdateError("PATCH was sent but read-back verification differed; inspect verification_diagnostics before retrying",
+                          verification, diagnostic_key="verification_diagnostics", write_attempted=True)
+    result.update(changed=True, verified=True, backup=str(backup))
     return result
 
 
@@ -297,7 +346,9 @@ def main(argv=None):
     except (UpdateError, OSError, ValueError) as exc:
         result = {"changed": False, "error": str(exc)}
         if isinstance(exc, UpdateError) and exc.diagnostics is not None:
-            result["acl_diagnostics"] = exc.diagnostics
+            result[exc.diagnostic_key] = exc.diagnostics
+        if isinstance(exc, UpdateError) and exc.write_attempted:
+            result.update(changed=None, write_attempted=True, verified=False)
         print(json.dumps(result))
         return 1
 
