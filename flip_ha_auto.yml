@@ -54,6 +54,10 @@
 
     - name: Determine which firewall is active in HA
       paloaltonetworks.panos.panos_active_in_ha:
+        # Only used to tell active from passive. PAN-OS can transiently report the running config as
+        # not synchronized (configs effectively identical), which made this module fail the job. Config
+        # sync isn't needed for the upgrade/failover; session state sync is still checked before each one.
+        skip_config_sync: true
         ip_address: "{{ item }}"
         username: "{{ username | default(omit) }}"
         password: "{{ password | default(omit) }}"
