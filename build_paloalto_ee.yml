@@ -15,9 +15,9 @@
     # Required variables: pah_username, pah_password, rh_username, rh_password
     # ah_host must also be provided (e.g. via extra vars or inventory vars)
 
-    # Base image and registry variables
-    ee_base_image: registry.redhat.io/ansible-automation-platform-25/ee-minimal-rhel9:latest
-    ee_base_sig_name: registry.redhat.io/ansible-automation-platform-25/ee-minimal-rhel9:latest
+    # Base image and registry variables.  Pinned to a tested tag (not :latest) so the base image, and the Python
+    # version in it, only change when we choose; when bumping, check the image's python3.X and python_path below.
+    ee_base_image: registry.redhat.io/ansible-automation-platform-26/ee-minimal-rhel9:1.0.0-985
     ee_container_policy: system
     ee_base_registry_username: "{{ rh_username | default(pah_username) }}"
     ee_base_registry_password: "{{ rh_password | default(pah_password) }}"
@@ -25,7 +25,6 @@
     ee_prune_images: true
     ee_pull_collections_from_hub: false
     alt_name: "Palo Alto Execution Environment"  # existing AAP EE the job templates use; the last task updates its image
-    ee_name: ee_paloalto
     ee_reg_credential: Automation Hub Container Registry
     ee_registry_dest: "{{ ah_host }}"
     ee_registry_username: "{{ pah_username }}"
@@ -36,7 +35,10 @@
     ee_list:
       - name: ee_paloalto
         alt_name: "{{ alt_name }}"
-        tag: "{{ ansible_date_time.iso8601_basic_short }}"
+        # Pushed as both; the first (unique per build) is what the AAP EE is pointed at.
+        tags:
+          - "{{ ansible_date_time.iso8601_basic_short }}"
+          - latest
         dependencies:
           python:
             # Install any required python packages directly
@@ -72,7 +74,7 @@
               - name: cisco.nxos
               - name: cisco.aci
           python_interpreter:
-            python_path: "/usr/bin/python3.12"  # must match the Python with ansible-core in the base image
+            python_path: "/usr/bin/python3.11"  # must match the Python with ansible-core in the base image
         build_steps:
           # Make the EE's Python (PYCMD) the default python3/python, so nothing falls back to RHEL's
           # system python3.9, which lacks the pip packages.  The import check fails the build if not.
@@ -100,7 +102,8 @@
     - name: Update Execution Environment Version in Controller with new version
       ansible.controller.execution_environment:
         name: "{{ alt_name }}"
-        image: "{{ ah_host }}/{{ ee_name }}:{{ ansible_date_time.iso8601_basic_short }}"
+        # Same destination the ee_builder role pushed to (ee_registry_dest/name:first tag).
+        image: "{{ ee_registry_dest }}/{{ ee_list[0].name }}:{{ ee_list[0].tags[0] }}"
         credential: "{{ ee_reg_credential }}"
         controller_host: "https://{{ ah_host | regex_replace('^https?://', '') }}"
         controller_username: "{{ pah_username }}"
