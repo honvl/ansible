@@ -73,6 +73,11 @@
               - name: cisco.aci
           python_interpreter:
             python_path: "/usr/bin/python3.12"  # must match the Python with ansible-core in the base image
+        build_steps:
+          # Make the EE's Python (PYCMD) the default python3/python, so nothing falls back to RHEL's
+          # system python3.9, which lacks the pip packages.  The import check fails the build if not.
+          append_final:
+            - RUN ln -sf $PYCMD /usr/bin/python3 && ln -sf $PYCMD /usr/bin/python && python3 -c 'import ansible, panos, pan.xapi, jmespath, netaddr, pandas' && python -V
 
   pre_tasks:
     - name: Login to PAH
