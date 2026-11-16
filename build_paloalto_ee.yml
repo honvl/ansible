@@ -72,7 +72,7 @@
               - name: cisco.nxos
               - name: cisco.aci
           python_interpreter:
-            python_path: "/usr/bin/python3.11"
+            python_path: "/usr/bin/python3.12"  # must match the Python with ansible-core in the base image
 
   pre_tasks:
     - name: Login to PAH
