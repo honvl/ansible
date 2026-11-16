@@ -1,6 +1,8 @@
 - name: Load already imported configuration
   hosts: my-firewall
   connection: local
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"  # EE Python that has pan-os-python etc.
   gather_facts: False
 
   roles:

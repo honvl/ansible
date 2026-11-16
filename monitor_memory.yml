@@ -32,6 +32,8 @@
 - name: Detect active firewall and monitor pan_task memory
   hosts: "{{ target | default('ha_pair') }}"
   connection: local
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"  # EE Python that has pan-os-python etc.
   gather_facts: false
 
   tasks:
