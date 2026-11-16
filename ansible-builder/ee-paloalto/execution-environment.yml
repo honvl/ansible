@@ -3,6 +3,8 @@ version: 3
 dependencies:
   galaxy: requirements.yml
   python: requirements.txt
+  python_interpreter:
+    python_path: /usr/bin/python3.12  # must match the Python with ansible-core in the base image
 
 # (Optional) Add system packages if Palo Alto SDK requires extra binaries
 # system: bindep.txt
