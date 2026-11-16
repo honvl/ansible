@@ -43,13 +43,34 @@
             - pan-os-python
             - pan-python
             - pandevice
-            - xmltodict
+            - xmltodict   # PAN-OS XML output, ansible.utils from_xml/to_xml filters
             - requests
+            - jmespath    # json_query filter
+            - lxml        # community.general.xml module
+            - netaddr     # ansible.utils ipaddr/ipv4/ipv6 filters
+            - pexpect     # ansible.builtin.expect (panosscpexport.yml)
+            # Cisco IOS / NX-OS / ACI
+            - ansible-pylibssh  # network_cli SSH transport (preferred)
+            - paramiko          # network_cli SSH fallback
+            - textfsm           # cli_parse / parse_cli_textfsm
+            - ntc-templates     # TextFSM templates for IOS/NX-OS show commands
+            - ttp               # cli_parse ttp parser
+            - xmljson           # cisco.aci XML output
+            - cryptography      # cisco.aci signature-based auth
+            - pandas            # iosfreeinterfaces.py (run via delegate_to: localhost)
           galaxy:
             collections:
               - name: paloaltonetworks.panos
-                version: ">=3.2.0"
-              - name: community.general
+                version: ">=3.4.0"  # 3.4.0+ knows the PAN-OS 12.1 base image is 12.1.2
+              # Generic modules and filters: mail, json_query, xml, ipaddr, from_xml, cli_parse, etc.
+              - name: community.general   # mail, xml, json_query
+              - name: ansible.utils       # from_xml/to_xml, ipaddr, cli_parse, validate
+              - name: ansible.netcommon   # dependency of ansible.utils network filters
+              - name: ansible.posix       # synchronize, acl, patch, etc.
+              # Cisco
+              - name: cisco.ios
+              - name: cisco.nxos
+              - name: cisco.aci
           python_interpreter:
             python_path: "/usr/bin/python3.11"
 

@@ -1,6 +1,18 @@
 pan-os-python
+pan-python
 pandevice
-xmltodict
-jmespath
+xmltodict   # PAN-OS XML output, ansible.utils from_xml/to_xml filters
+jmespath    # json_query filter
 requests
-
+lxml        # community.general.xml module
+netaddr     # ansible.utils ipaddr/ipv4/ipv6 filters
+pexpect     # ansible.builtin.expect (panosscpexport.yml)
+# Cisco IOS / NX-OS / ACI
+ansible-pylibssh  # network_cli SSH transport (preferred)
+paramiko          # network_cli SSH fallback
+textfsm           # cli_parse / parse_cli_textfsm
+ntc-templates     # TextFSM templates for IOS/NX-OS show commands
+ttp               # cli_parse ttp parser
+xmljson           # cisco.aci XML output
+cryptography      # cisco.aci signature-based auth
+pandas            # iosfreeinterfaces.py (run via delegate_to: localhost)

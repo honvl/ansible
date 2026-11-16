@@ -1,4 +1,12 @@
 collections:
   - name: paloaltonetworks.panos
-    version: ">=3.2.0"   # or latest stable
-
+    version: ">=3.4.0"   # 3.4.0+ knows the PAN-OS 12.1 base image is 12.1.2
+  # Generic modules and filters: mail, json_query, xml, ipaddr, from_xml, cli_parse, etc.
+  - name: community.general   # mail, xml, json_query
+  - name: ansible.utils       # from_xml/to_xml, ipaddr, cli_parse, validate
+  - name: ansible.netcommon   # dependency of ansible.utils network filters
+  - name: ansible.posix       # synchronize, acl, patch, etc.
+  # Cisco
+  - name: cisco.ios
+  - name: cisco.nxos
+  - name: cisco.aci

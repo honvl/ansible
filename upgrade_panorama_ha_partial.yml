@@ -4,9 +4,9 @@
 # Description
 # ===========
 #
-# Upgrades a Panorama HA pair to the specified version.  Upgrade must be a single step (i.e. 8.1.7 to 8.1.12). For
-# major version upgrades requiring a base image to be downloaded to the device prior to performing the upgrade, see the
-# 'download_panos_image.yml' playbook.
+# Finishes a Panorama HA upgrade by upgrading only the secondary (the primary is already on the target version).  The
+# target version must already be downloaded on the secondary.  Works for patch and feature release upgrades
+# (i.e. 11.2.7 to 12.1.3).
 #
 # This playbook requires connection details for the two members of the HA pair to be specified in the variables
 # 'primary_ip_address', 'secondary_ip_address', 'username', and 'password'.  These may be defined as host variables
@@ -58,9 +58,10 @@
     #                     upgrading the secondary firewall.
     pause_mid_upgrade: false
 
-    # major_version_upgrade - Handles special case when one Panorama is on a different major version.  Should only be
-    #                         set to true when performing a major version upgrade.
-    major_version_upgrade: false
+    # major_version_upgrade - Handles special case when one Panorama is on a different major version.  'auto' (default)
+    #                         treats the upgrade as major when the secondary's major.minor differs from the target's
+    #                         (i.e. 11.2.x -> 12.1.x).  Set true/false to override.
+    major_version_upgrade: auto
 
   tasks:
     - name: Get current PAN-OS version (secondary)
@@ -76,6 +77,15 @@
     - name: Set current PAN-OS version (secondary)
       ansible.builtin.set_fact:
         secondary_version: "{{ (secondary_info.stdout | from_json).response.result.system['sw-version'] }}"
+
+    - name: Detect major version upgrade
+      ansible.builtin.set_fact:
+        is_major_upgrade: "{{ (secondary_version.split('.')[:2] != (version | string).split('.')[:2])
+                              if (major_version_upgrade | string | lower) == 'auto' else (major_version_upgrade | bool) }}"
+
+    - name: Show upgrade plan
+      ansible.builtin.debug:
+        msg: 'Secondary {{ secondary_version }}, target {{ version }}, major version upgrade: {{ is_major_upgrade | bool }}'
 
     - name: Skip upgrade, secondary already on target version
       ansible.builtin.debug:
@@ -96,10 +106,11 @@
       until: primary_passive is not failed and
              (primary_passive.stdout | from_json).response.result.enabled == 'yes' and
              (primary_passive.stdout | from_json).response.result["local-info"].state == 'primary-passive'
-      when: not major_version_upgrade|bool
+      when: not is_major_upgrade|bool
 
-    # Special case, Panorama HA doesn't work across major versions like firewalls, so primary will be non-functional.
-    - name: Check that primary is up and non-functional
+    # Special case, Panorama HA doesn't work across major versions like firewalls, so primary will normally be
+    # non-functional.  Passive is accepted too, in case a feature release step keeps HA compatible.
+    - name: Check that primary is up and non-functional (or passive)
       paloaltonetworks.panos.panos_op:
         provider: '{{ primary }}'
         cmd: 'show high-availability state'
@@ -108,9 +119,10 @@
       delay: 60
       until: primary_nf is not failed and
              (primary_nf.stdout | from_json).response.result.enabled == 'yes' and
-             (primary_nf.stdout | from_json).response.result["local-info"].state == 'primary-non-functional' and
-             (primary_nf.stdout | from_json).response.result["local-info"]["state-reason"] == 'Peer version not compatible'
-      when: major_version_upgrade|bool
+             ((primary_nf.stdout | from_json).response.result["local-info"].state == 'primary-passive' or
+              ((primary_nf.stdout | from_json).response.result["local-info"].state == 'primary-non-functional' and
+               (primary_nf.stdout | from_json).response.result["local-info"]["state-reason"] == 'Peer version not compatible'))
+      when: is_major_upgrade|bool
 
     - name: Pause for verification
       ansible.builtin.pause:
