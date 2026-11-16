@@ -24,7 +24,7 @@
 
     ee_prune_images: true
     ee_pull_collections_from_hub: false
-    alt_name: "Palo Alto Networks Execution Environment"
+    alt_name: "Palo Alto Execution Environment"  # existing AAP EE the job templates use; the last task updates its image
     ee_name: ee_paloalto
     ee_reg_credential: Automation Hub Container Registry
     ee_registry_dest: "{{ ah_host }}"
@@ -35,7 +35,7 @@
     # Define the EE structure
     ee_list:
       - name: ee_paloalto
-        alt_name: "Palo Alto Networks Execution Environment"
+        alt_name: "{{ alt_name }}"
         tag: "{{ ansible_date_time.iso8601_basic_short }}"
         dependencies:
           python:
